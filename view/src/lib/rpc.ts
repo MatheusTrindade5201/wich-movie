@@ -27,8 +27,15 @@ export interface MovieRecommendation {
   title: string;
   overview: string;
   posterUrl: string;
+  genres?: string[];
   videos?: MovieVideo[];
   watchProviders?: WatchProviders;
+}
+
+export interface MovieReviews {
+  summary: string;
+  sentiment: string;
+  keyPoints: string[];
 }
 
 interface CustomTools {
@@ -37,6 +44,7 @@ interface CustomTools {
     includeGenreIds: number[];
     excludeGenreIds?: number[];
   }) => Promise<MovieRecommendation>;
+  GET_MOVIE_REVIEWS: (input: { movieId: number }) => Promise<MovieReviews>;
 }
 
 // Cliente RPC simples para comunicação com o servidor MCP
@@ -116,9 +124,13 @@ class RPCClient {
 
   async RECOMMEND_MOVIE(input: {
     includeGenreIds: number[];
-    excludeGenreIds?: number[];
+    excludeGenreIds: number[];
   }): Promise<MovieRecommendation> {
-    return this.callTool<MovieRecommendation>("RECOMMEND_MOVIE", input);
+    return this.callTool("RECOMMEND_MOVIE", input);
+  }
+
+  async GET_MOVIE_REVIEWS(input: { movieId: number }): Promise<MovieReviews> {
+    return this.callTool("GET_MOVIE_REVIEWS", input);
   }
 }
 

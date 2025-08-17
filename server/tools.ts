@@ -33,6 +33,7 @@ export const createRecommendMovieTool = (env: Env) =>
       title: z.string(),
       overview: z.string(),
       posterUrl: z.string(),
+      genres: z.array(z.string()).optional(),
       videos: z
         .array(
           z.object({
@@ -253,6 +254,7 @@ export const createRecommendMovieTool = (env: Env) =>
 
       return {
         ...movieResult,
+        genres: genres.length > 0 ? genres : undefined,
         videos: videos.length > 0 ? videos : undefined,
         watchProviders:
           Object.keys(watchProviders).length > 0 ? watchProviders : undefined,
