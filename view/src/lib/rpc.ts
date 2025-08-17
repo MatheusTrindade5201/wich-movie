@@ -68,6 +68,28 @@ export interface GenreSuggestion {
   analysis: string;
 }
 
+export interface GenreStat {
+  genre: string;
+  count: number;
+  averageRating: number;
+  percentage: number;
+}
+
+export interface RatingStats {
+  averageRating: number;
+  totalMovies: number;
+  highlyRated: number;
+  mediumRated: number;
+  lowRated: number;
+}
+
+export interface MovieAnalysis {
+  analysis: string;
+  genreStats: GenreStat[];
+  ratingStats: RatingStats;
+  recommendations: string[];
+}
+
 interface CustomTools {
   LIST_MOVIE_GENRES: () => Promise<{ genres: MovieGenre[] }>;
   RECOMMEND_MOVIE: (input: {
@@ -93,6 +115,7 @@ interface CustomTools {
   SUGGEST_GENRES: (input: {
     preference: "comfort" | "new";
   }) => Promise<GenreSuggestion>;
+  ANALYZE_WATCHED_MOVIES: () => Promise<MovieAnalysis>;
 }
 
 // Cliente RPC simples para comunicação com o servidor MCP
@@ -222,6 +245,10 @@ class RPCClient {
     preference: "comfort" | "new";
   }): Promise<GenreSuggestion> {
     return this.callTool("SUGGEST_GENRES", input);
+  }
+
+  async ANALYZE_WATCHED_MOVIES(): Promise<MovieAnalysis> {
+    return this.callTool("ANALYZE_WATCHED_MOVIES");
   }
 }
 

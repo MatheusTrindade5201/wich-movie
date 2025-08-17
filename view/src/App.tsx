@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { client } from "./lib/rpc";
+import { useState, useEffect } from "react";
+import { client, type MovieAnalysis } from "./lib/rpc";
 import type {
   MovieRecommendation,
   MovieReviews,
@@ -10,29 +10,20 @@ import type {
 import {
   Button,
   Card,
-  CardContent,
   Typography,
   Box,
   Modal,
   IconButton,
   Chip,
   Rating,
-  Fab,
   AppBar,
   Toolbar,
   Container,
-  Grid,
   Paper,
-  Divider,
   List,
   ListItem,
   ListItemText,
-  ListItemAvatar,
   Avatar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   LinearProgress,
   CircularProgress,
   Alert,
@@ -57,7 +48,6 @@ import {
   CheckCircle as CheckCircleIcon,
   Cancel as CancelIcon,
   LibraryBooks as LibraryBooksIcon,
-  LocalMovies as LocalMoviesIcon,
 } from "@mui/icons-material";
 
 // Tema escuro personalizado
@@ -246,6 +236,11 @@ function App() {
   const [historyView, setHistoryView] = useState<"watched" | "recommended">(
     "watched"
   );
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+
+  const [analysisData, setAnalysisData] = useState<MovieAnalysis | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   const handleIncludeGenre = (genreId: number) => {
     if (selectedGenres.includes(genreId)) {
@@ -352,6 +347,30 @@ function App() {
     setHistoryError(null);
   };
 
+  const handleOpenAnalysisModal = async () => {
+    setShowAnalysisModal(true);
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    setAnalysisData(null);
+
+    try {
+      const result = await client.ANALYZE_WATCHED_MOVIES();
+      setAnalysisData(result);
+    } catch (err) {
+      setAnalysisError(
+        err instanceof Error ? err.message : "Erro ao analisar filmes"
+      );
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const handleCloseAnalysisModal = () => {
+    setShowAnalysisModal(false);
+    setAnalysisData(null);
+    setAnalysisError(null);
+  };
+
   const handleAddToWatched = async (
     movie: RecommendedMovie | MovieRecommendation
   ) => {
@@ -399,7 +418,7 @@ function App() {
   const handleUpdateRating = async (movieId: number, rating: number) => {
     setRatingLoading(movieId);
     try {
-      const result = await client.UPDATE_MOVIE_RATING({ movieId, rating });
+      await client.UPDATE_MOVIE_RATING({ movieId, rating });
 
       // Recarregar lista de filmes assistidos e ordenar
       const watchedData = await client.GET_WATCHED_MOVIES();
@@ -1637,7 +1656,7 @@ function App() {
               <CloseIcon />
             </IconButton>
 
-            <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
+            <Typography variant="h4" sx={{ mb: 3 }}>
               <LibraryBooksIcon sx={{ mr: 1, verticalAlign: "middle" }} />
               Histórico de Filmes
             </Typography>
@@ -1718,88 +1737,127 @@ function App() {
                         </Typography>
                       </Box>
                     ) : (
-                      <List>
-                        {watchedMovies.map((movie) => (
-                          <ListItem
-                            key={movie.id}
+                      <Box>
+                        {/* Botão de Análise */}
+                        <Box sx={{ mb: 3, textAlign: "center" }}>
+                          <Button
+                            variant="outlined"
+                            onClick={handleOpenAnalysisModal}
+                            startIcon={<AutoAwesomeIcon />}
                             sx={{
-                              bgcolor: "rgba(51, 65, 85, 0.3)",
-                              mb: 1,
-                              borderRadius: 1,
-                              position: "relative",
-                              border: "1px solid rgba(51, 65, 85, 0.5)",
-                              p: 2,
+                              px: 2.5,
+                              py: 1.2,
+                              fontSize: "1rem",
+                              backgroundColor: "#8b5cf6",
+                              borderColor: "#8b5cf6",
+                              color: "white",
+                              "&:hover": {
+                                backgroundColor: "#7c3aed",
+                                borderColor: "#7c3aed",
+                                transform: "translateY(-1px)",
+                                boxShadow: 3,
+                              },
+                              "&:active": {
+                                backgroundColor: "#6d28d9",
+                                borderColor: "#6d28d9",
+                                transform: "translateY(0)",
+                              },
                             }}
                           >
-                            {/* Ícone de ação no canto superior direito */}
-                            <IconButton
-                              onClick={() =>
-                                handleRemoveFromWatched(movie.movieId)
-                              }
-                              disabled={
-                                removingFromWatchedLoading === movie.movieId
-                              }
-                              size="small"
+                            Análise dos Filmes Assistidos
+                          </Button>
+                        </Box>
+                        <List>
+                          {watchedMovies.map((movie) => (
+                            <ListItem
+                              key={movie.id}
                               sx={{
-                                position: "absolute",
-                                top: 8,
-                                right: 8,
-                                color: "error.main",
-                                backgroundColor: "rgba(239, 68, 68, 0.1)",
-                                "&:hover": {
-                                  backgroundColor: "rgba(239, 68, 68, 0.2)",
-                                },
-                                zIndex: 1,
+                                bgcolor: "rgba(51, 65, 85, 0.3)",
+                                mb: 1,
+                                borderRadius: 1,
+                                position: "relative",
+                                border: "1px solid rgba(51, 65, 85, 0.5)",
+                                p: 2,
                               }}
                             >
-                              {removingFromWatchedLoading === movie.movieId ? (
-                                <CircularProgress size={16} />
-                              ) : (
-                                <CancelIcon fontSize="small" />
-                              )}
-                            </IconButton>
+                              {/* Ícone de ação no canto superior direito */}
+                              <IconButton
+                                onClick={() =>
+                                  handleRemoveFromWatched(movie.movieId)
+                                }
+                                disabled={
+                                  removingFromWatchedLoading === movie.movieId
+                                }
+                                size="small"
+                                sx={{
+                                  position: "absolute",
+                                  top: 8,
+                                  right: 8,
+                                  color: "error.main",
+                                  backgroundColor: "rgba(239, 68, 68, 0.1)",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(239, 68, 68, 0.2)",
+                                  },
+                                  zIndex: 1,
+                                }}
+                              >
+                                {removingFromWatchedLoading ===
+                                movie.movieId ? (
+                                  <CircularProgress size={16} />
+                                ) : (
+                                  <CancelIcon fontSize="small" />
+                                )}
+                              </IconButton>
 
-                            {/* Conteúdo do card */}
-                            <Box display="flex" gap={2} sx={{ width: "100%" }}>
-                              {movie.poster && (
-                                <img
-                                  src={movie.poster}
-                                  alt={movie.title}
-                                  style={{
-                                    width: "50px",
-                                    height: "75px",
-                                    borderRadius: "8px",
-                                    objectFit: "cover",
-                                    flexShrink: 0,
-                                  }}
-                                />
-                              )}
-                              <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography
-                                  variant="subtitle1"
-                                  sx={{
-                                    mb: 0.5,
-                                    fontWeight: 600,
-                                    lineHeight: 1.2,
-                                  }}
-                                >
-                                  {movie.title}
-                                </Typography>
-                                {renderGenres(movie.genres)}
-                                <Box sx={{ mt: 1 }}>
-                                  <StarRating
-                                    rating={movie.rating}
-                                    onRatingChange={(rating) =>
-                                      handleUpdateRating(movie.movieId, rating)
-                                    }
-                                    movieId={movie.movieId}
+                              {/* Conteúdo do card */}
+                              <Box
+                                display="flex"
+                                gap={2}
+                                sx={{ width: "100%" }}
+                              >
+                                {movie.poster && (
+                                  <img
+                                    src={movie.poster}
+                                    alt={movie.title}
+                                    style={{
+                                      width: "50px",
+                                      height: "75px",
+                                      borderRadius: "8px",
+                                      objectFit: "cover",
+                                      flexShrink: 0,
+                                    }}
                                   />
+                                )}
+                                <Box sx={{ flex: 1, minWidth: 0 }}>
+                                  <Typography
+                                    variant="subtitle1"
+                                    sx={{
+                                      mb: 0.5,
+                                      fontWeight: 600,
+                                      lineHeight: 1.2,
+                                    }}
+                                  >
+                                    {movie.title}
+                                  </Typography>
+                                  {renderGenres(movie.genres)}
+                                  <Box sx={{ mt: 1 }}>
+                                    <StarRating
+                                      rating={movie.rating}
+                                      onRatingChange={(rating) =>
+                                        handleUpdateRating(
+                                          movie.movieId,
+                                          rating
+                                        )
+                                      }
+                                      movieId={movie.movieId}
+                                    />
+                                  </Box>
                                 </Box>
                               </Box>
-                            </Box>
-                          </ListItem>
-                        ))}
-                      </List>
+                            </ListItem>
+                          ))}
+                        </List>
+                      </Box>
                     )}
                   </Box>
                 ) : (
@@ -1922,6 +1980,252 @@ function App() {
                         ))}
                       </List>
                     )}
+                  </Box>
+                )}
+              </Box>
+            )}
+          </Paper>
+        </Modal>
+      )}
+
+      {/* Modal de Análise - Renderizado sempre */}
+      {showAnalysisModal && (
+        <Modal
+          open={showAnalysisModal}
+          onClose={handleCloseAnalysisModal}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            p: 2,
+            backgroundColor: "rgba(0, 0, 0, 0.4)",
+            zIndex: 9999,
+          }}
+        >
+          <Paper
+            sx={{
+              maxWidth: 800,
+              width: "100%",
+              maxHeight: "90vh",
+              overflow: "auto",
+              position: "relative",
+              p: 3,
+              backgroundColor: "#1e293b",
+              border: "1px solid #334155",
+            }}
+          >
+            <IconButton
+              onClick={handleCloseAnalysisModal}
+              sx={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+
+            <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
+              <AutoAwesomeIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+              Análise dos Seus Filmes
+            </Typography>
+
+            {analysisLoading && (
+              <Box textAlign="center" py={4}>
+                <LinearProgress sx={{ width: 200, mx: "auto", mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">
+                  Analisando seus filmes assistidos...
+                </Typography>
+              </Box>
+            )}
+
+            {analysisError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                Erro: {analysisError}
+              </Alert>
+            )}
+
+            {analysisData && !analysisLoading && (
+              <Box>
+                {/* Análise Geral */}
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="h5" gutterBottom>
+                    📊 Análise Geral
+                  </Typography>
+                  <Typography
+                    variant="body1"
+                    color="text.secondary"
+                    sx={{ lineHeight: 1.6 }}
+                  >
+                    {analysisData.analysis}
+                  </Typography>
+                </Box>
+
+                {/* Estatísticas de Avaliação */}
+                {analysisData.ratingStats.totalMovies > 0 && (
+                  <Box sx={{ mb: 4 }}>
+                    <Typography variant="h5" gutterBottom>
+                      ⭐ Avaliações
+                    </Typography>
+                    <Box display="flex" flexWrap="wrap" gap={2}>
+                      <Card
+                        sx={{
+                          p: 2,
+                          textAlign: "center",
+                          flex: 1,
+                          minWidth: 150,
+                        }}
+                      >
+                        <Typography variant="h4" color="primary.main">
+                          {analysisData.ratingStats.averageRating}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Média Geral
+                        </Typography>
+                      </Card>
+                      <Card
+                        sx={{
+                          p: 2,
+                          textAlign: "center",
+                          flex: 1,
+                          minWidth: 150,
+                        }}
+                      >
+                        <Typography variant="h4" color="success.main">
+                          {analysisData.ratingStats.highlyRated}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Altamente Avaliados (4-5)
+                        </Typography>
+                      </Card>
+                      <Card
+                        sx={{
+                          p: 2,
+                          textAlign: "center",
+                          flex: 1,
+                          minWidth: 150,
+                        }}
+                      >
+                        <Typography variant="h4" color="warning.main">
+                          {analysisData.ratingStats.mediumRated}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Medianamente Avaliados (3)
+                        </Typography>
+                      </Card>
+                      <Card
+                        sx={{
+                          p: 2,
+                          textAlign: "center",
+                          flex: 1,
+                          minWidth: 150,
+                        }}
+                      >
+                        <Typography variant="h4" color="error.main">
+                          {analysisData.ratingStats.lowRated}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Pouco Avaliados (1-2)
+                        </Typography>
+                      </Card>
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Gráfico de Gêneros */}
+                {analysisData.genreStats.length > 0 && (
+                  <Box sx={{ mb: 4 }}>
+                    <Typography variant="h5" gutterBottom>
+                      🎬 Gêneros Mais Assistidos
+                    </Typography>
+                    <Box sx={{ maxHeight: 300, overflow: "auto" }}>
+                      {analysisData.genreStats.map((stat) => (
+                        <Box
+                          key={stat.genre}
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            mb: 2,
+                            p: 2,
+                            bgcolor: "rgba(51, 65, 85, 0.3)",
+                            borderRadius: 1,
+                          }}
+                        >
+                          <Box sx={{ flex: 1 }}>
+                            <Box
+                              display="flex"
+                              justifyContent="space-between"
+                              alignItems="center"
+                              mb={1}
+                            >
+                              <Typography variant="subtitle1">
+                                {stat.genre}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                              >
+                                {stat.count} filmes ({stat.percentage}%)
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                position: "relative",
+                                height: 8,
+                                bgcolor: "rgba(51, 65, 85, 0.5)",
+                                borderRadius: 4,
+                              }}
+                            >
+                              <Box
+                                sx={{
+                                  position: "absolute",
+                                  top: 0,
+                                  left: 0,
+                                  height: "100%",
+                                  width: `${stat.percentage}%`,
+                                  bgcolor: "primary.main",
+                                  borderRadius: 4,
+                                  transition: "width 0.3s ease",
+                                }}
+                              />
+                            </Box>
+                            {stat.averageRating > 0 && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ mt: 0.5 }}
+                              >
+                                Avaliação média: {stat.averageRating}/5
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                )}
+
+                {/* Recomendações */}
+                {analysisData.recommendations.length > 0 && (
+                  <Box>
+                    <Typography variant="h5" gutterBottom>
+                      💡 Recomendações
+                    </Typography>
+                    <List>
+                      {analysisData.recommendations.map((rec, index) => (
+                        <ListItem key={index} sx={{ px: 0 }}>
+                          <ListItemText
+                            primary={rec}
+                            sx={{
+                              "& .MuiListItemText-primary": {
+                                color: "text.secondary",
+                                lineHeight: 1.5,
+                              },
+                            }}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
                   </Box>
                 )}
               </Box>

@@ -926,6 +926,220 @@ async function getAllGenres(env: Env) {
   return data.genres || [];
 }
 
+export const createAnalyzeWatchedMoviesTool = (env: Env) =>
+  createTool({
+    id: "ANALYZE_WATCHED_MOVIES",
+    description:
+      "Analisa os filmes assistidos e gera insights sobre preferências do usuário",
+    inputSchema: z.object({}),
+    outputSchema: z.object({
+      analysis: z.string(),
+      genreStats: z.array(
+        z.object({
+          genre: z.string(),
+          count: z.number(),
+          averageRating: z.number(),
+          percentage: z.number(),
+        })
+      ),
+      ratingStats: z.object({
+        averageRating: z.number(),
+        totalMovies: z.number(),
+        highlyRated: z.number(),
+        mediumRated: z.number(),
+        lowRated: z.number(),
+      }),
+      recommendations: z.array(z.string()),
+    }),
+    execute: async ({ context }) => {
+      const db = await getDb(env);
+
+      try {
+        // Buscar filmes assistidos
+        const watchedMovies = await db
+          .select()
+          .from(watchedMoviesTable)
+          .orderBy(desc(watchedMoviesTable.createdAt));
+
+        if (watchedMovies.length === 0) {
+          return {
+            analysis:
+              "Você ainda não assistiu nenhum filme. Comece assistindo alguns filmes para receber análises personalizadas!",
+            genreStats: [],
+            ratingStats: {
+              averageRating: 0,
+              totalMovies: 0,
+              highlyRated: 0,
+              mediumRated: 0,
+              lowRated: 0,
+            },
+            recommendations: [
+              "Assista alguns filmes para começar a receber análises personalizadas",
+              "Experimente diferentes gêneros para descobrir suas preferências",
+            ],
+          };
+        }
+
+        // Analisar gêneros
+        const genreCount: {
+          [key: string]: {
+            count: number;
+            totalRating: number;
+            ratings: number[];
+          };
+        } = {};
+        let totalRating = 0;
+        let ratedMovies = 0;
+        let highlyRated = 0;
+        let mediumRated = 0;
+        let lowRated = 0;
+
+        watchedMovies.forEach((movie) => {
+          const genres = movie.genres ? JSON.parse(movie.genres) : [];
+          const rating = movie.rating || 0;
+
+          if (rating > 0) {
+            totalRating += rating;
+            ratedMovies++;
+
+            if (rating >= 4) highlyRated++;
+            else if (rating === 3) mediumRated++;
+            else lowRated++;
+          }
+
+          genres.forEach((genre: string) => {
+            if (!genreCount[genre]) {
+              genreCount[genre] = { count: 0, totalRating: 0, ratings: [] };
+            }
+            genreCount[genre].count++;
+            if (rating > 0) {
+              genreCount[genre].totalRating += rating;
+              genreCount[genre].ratings.push(rating);
+            }
+          });
+        });
+
+        // Calcular estatísticas de gêneros
+        const genreStats = Object.entries(genreCount)
+          .map(([genre, stats]) => ({
+            genre,
+            count: stats.count,
+            averageRating:
+              stats.ratings.length > 0
+                ? Math.round((stats.totalRating / stats.ratings.length) * 10) /
+                  10
+                : 0,
+            percentage: Math.round((stats.count / watchedMovies.length) * 100),
+          }))
+          .sort((a, b) => b.count - a.count);
+
+        // Calcular estatísticas gerais
+        const averageRating =
+          ratedMovies > 0
+            ? Math.round((totalRating / ratedMovies) * 10) / 10
+            : 0;
+
+        // Gerar análise usando AI
+        const analysisPrompt = `
+Analise os filmes assistidos pelo usuário e forneça insights sobre suas preferências cinematográficas.
+
+Filmes assistidos (${watchedMovies.length} total):
+${watchedMovies.map((movie) => `- ${movie.title} (${movie.rating ? movie.rating + "/5" : "sem avaliação"})`).join("\n")}
+
+Gêneros mais assistidos:
+${genreStats
+  .slice(0, 5)
+  .map(
+    (stat) => `- ${stat.genre}: ${stat.count} filmes (${stat.averageRating}/5)`
+  )
+  .join("\n")}
+
+Estatísticas gerais:
+- Avaliação média: ${averageRating}/5
+- Filmes altamente avaliados (4-5): ${highlyRated}
+- Filmes medianamente avaliados (3): ${mediumRated}
+- Filmes pouco avaliados (1-2): ${lowRated}
+
+Forneça uma análise em português brasileiro que inclua:
+1. Resumo das preferências do usuário
+2. Padrões identificados nos gêneros e avaliações
+3. Sugestões para explorar novos gêneros ou filmes similares
+4. Comentários sobre a diversidade do que foi assistido
+
+Seja conciso mas informativo, com tom amigável e encorajador.
+`;
+
+        const analysisResult =
+          await env.DECO_CHAT_WORKSPACE_API.AI_GENERATE_OBJECT({
+            messages: [
+              {
+                role: "user",
+                content: analysisPrompt,
+              },
+            ],
+            schema: {
+              type: "object",
+              properties: {
+                analysis: {
+                  type: "string",
+                  description: "Análise detalhada das preferências do usuário",
+                },
+                recommendations: {
+                  type: "array",
+                  items: {
+                    type: "string",
+                  },
+                  description: "Lista de recomendações personalizadas",
+                },
+              },
+              required: ["analysis", "recommendations"],
+            },
+          });
+
+        const result: {
+          analysis: string;
+          genreStats: Array<{
+            genre: string;
+            count: number;
+            averageRating: number;
+            percentage: number;
+          }>;
+          ratingStats: {
+            averageRating: number;
+            totalMovies: number;
+            highlyRated: number;
+            mediumRated: number;
+            lowRated: number;
+          };
+          recommendations: string[];
+        } = {
+          analysis: String(
+            analysisResult.object?.analysis || "Análise não disponível"
+          ),
+          genreStats,
+          ratingStats: {
+            averageRating,
+            totalMovies: watchedMovies.length,
+            highlyRated,
+            mediumRated,
+            lowRated,
+          },
+          recommendations: Array.isArray(analysisResult.object?.recommendations)
+            ? analysisResult.object.recommendations.map(String)
+            : [
+                "Continue explorando diferentes gêneros",
+                "Experimente filmes com avaliações altas",
+              ],
+        };
+
+        return result;
+      } catch (error) {
+        console.error("Erro ao analisar filmes assistidos:", error);
+        throw new Error("Falha ao analisar filmes assistidos");
+      }
+    },
+  });
+
 export const tools = [
   createRecommendMovieTool,
   createSetTmdbApiKeyTool,
@@ -938,4 +1152,5 @@ export const tools = [
   createGetWatchedMoviesTool,
   createUpdateMovieRatingTool,
   createSuggestGenresTool,
+  createAnalyzeWatchedMoviesTool,
 ];
