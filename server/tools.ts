@@ -19,6 +19,107 @@ import {
   watchedMoviesTable,
 } from "./schema.ts";
 
+// Helper functions para API key
+async function getTmdbApiKey(env: Env): Promise<string> {
+  const db = await getDb(env);
+  const apiKeyRow = await db
+    .select()
+    .from(tmdbApiKeyTable)
+    .where(eq(tmdbApiKeyTable.id, 1));
+
+  const apiKey = apiKeyRow[0]?.apiKey;
+  if (!apiKey) {
+    throw new Error(
+      "TMDB API key not configured. Use SET_TMDB_API_KEY para configurar."
+    );
+  }
+
+  return apiKey;
+}
+
+function isTmdbV4Token(apiKey: string): boolean {
+  return apiKey.startsWith("eyJ");
+}
+
+function createTmdbFetchOptions(
+  apiKey: string,
+  baseUrl: string
+): {
+  url: string;
+  fetchOptions: RequestInit;
+} {
+  if (isTmdbV4Token(apiKey)) {
+    // Token v4
+    return {
+      url: baseUrl,
+      fetchOptions: {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      },
+    };
+  } else {
+    // API Key v3
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    return {
+      url: `${baseUrl}${separator}api_key=${apiKey}`,
+      fetchOptions: {},
+    };
+  }
+}
+
+// Helper para tratamento de erros HTTP
+async function fetchTmdbApi(url: string, fetchOptions: RequestInit) {
+  const res = await fetch(url, fetchOptions);
+  if (!res.ok) {
+    let errorBody = "";
+    try {
+      errorBody = await res.text();
+    } catch {}
+    throw new Error(
+      `TMDB API error: ${res.status} ${res.statusText} - ${errorBody}`
+    );
+  }
+  return res;
+}
+
+// Helper para parsing de gêneros
+function parseGenres(genresString: string | null): string[] {
+  if (!genresString) return [];
+  try {
+    const parsed = JSON.parse(genresString);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+// Helper para mapeamento de provedores
+function mapProviders(providers: any, type: "flatrate" | "rent" | "buy") {
+  return (
+    providers?.[type]?.map((p: any) => ({
+      provider_name: p.provider_name,
+      logo_path: p.logo_path
+        ? `https://image.tmdb.org/t/p/original${p.logo_path}`
+        : undefined,
+    })) || []
+  );
+}
+
+// Helper para operações de banco seguras
+async function safeDbOperation<T>(
+  operation: () => Promise<T>,
+  errorMessage: string
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    console.error(errorMessage, error);
+    throw new Error(errorMessage);
+  }
+}
+
 export const createRecommendMovieTool = (env: Env) =>
   createTool({
     id: "RECOMMEND_MOVIE",
@@ -74,49 +175,22 @@ export const createRecommendMovieTool = (env: Env) =>
         .optional(),
     }),
     execute: async ({ context }) => {
-      const db = await getDb(env);
-      // Busca a chave no banco
-      const apiKeyRow = await db
-        .select()
-        .from(tmdbApiKeyTable)
-        .where(eq(tmdbApiKeyTable.id, 1));
-      const apiKey = apiKeyRow[0]?.apiKey;
-      if (!apiKey) {
-        throw new Error(
-          "TMDB API key not configured. Use SET_TMDB_API_KEY para configurar."
-        );
-      }
-      let url =
+      const apiKey = await getTmdbApiKey(env);
+
+      let baseUrl =
         "https://api.themoviedb.org/3/discover/movie?sort_by=popularity.desc&language=pt-BR&include_video=true&with_watch_providers=8|119|9|220|350|2|3|15|192|531|7|97|384|8|119|9|220|350|2|3|15|192|531|7|97|384";
+
       // Adiciona gêneros incluídos
       if (context.includeGenreIds && context.includeGenreIds.length > 0) {
-        url += `&with_genres=${context.includeGenreIds.join(",")}`;
+        baseUrl += `&with_genres=${context.includeGenreIds.join(",")}`;
       }
       // Adiciona gêneros excluídos
       if (context.excludeGenreIds && context.excludeGenreIds.length > 0) {
-        url += `&without_genres=${context.excludeGenreIds.join(",")}`;
+        baseUrl += `&without_genres=${context.excludeGenreIds.join(",")}`;
       }
-      let fetchOptions: RequestInit = {};
-      if (apiKey.startsWith("eyJ")) {
-        // Token v4
-        fetchOptions.headers = {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        };
-      } else {
-        // API Key v3
-        url += `&api_key=${apiKey}`;
-      }
-      const res = await fetch(url, fetchOptions);
-      let errorBody = "";
-      if (!res.ok) {
-        try {
-          errorBody = await res.text();
-        } catch {}
-        throw new Error(
-          `TMDB API error: ${res.status} ${res.statusText} - ${errorBody}`
-        );
-      }
+
+      const { url, fetchOptions } = createTmdbFetchOptions(apiKey, baseUrl);
+      const res = await fetchTmdbApi(url, fetchOptions);
       const data = await res.json();
       if (!data.results || data.results.length === 0) {
         throw new Error("Nenhum filme encontrado na resposta do TMDB");
@@ -128,24 +202,13 @@ export const createRecommendMovieTool = (env: Env) =>
       // Buscar gêneros do filme
       let genres: string[] = [];
       try {
-        const genresUrl = apiKey.startsWith("eyJ")
-          ? `https://api.themoviedb.org/3/movie/${movie.id}?language=pt-BR`
-          : `https://api.themoviedb.org/3/movie/${movie.id}?language=pt-BR&api_key=${apiKey}`;
+        const genresBaseUrl = `https://api.themoviedb.org/3/movie/${movie.id}?language=pt-BR`;
+        const { url: genresUrl, fetchOptions: genresFetchOptions } =
+          createTmdbFetchOptions(apiKey, genresBaseUrl);
 
-        const genresFetchOptions: RequestInit = apiKey.startsWith("eyJ")
-          ? {
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-              },
-            }
-          : {};
-
-        const genresRes = await fetch(genresUrl, genresFetchOptions);
-        if (genresRes.ok) {
-          const movieData = await genresRes.json();
-          genres = movieData.genres?.map((g: any) => g.name) || [];
-        }
+        const genresRes = await fetchTmdbApi(genresUrl, genresFetchOptions);
+        const movieData = await genresRes.json();
+        genres = movieData.genres?.map((g: any) => g.name) || [];
       } catch (error) {
         console.error("Erro ao buscar gêneros do filme:", error);
       }
@@ -162,27 +225,16 @@ export const createRecommendMovieTool = (env: Env) =>
       // Buscar vídeos do filme
       let videos: any[] = [];
       try {
-        const videosUrl = apiKey.startsWith("eyJ")
-          ? `https://api.themoviedb.org/3/movie/${movie.id}/videos?language=pt-BR`
-          : `https://api.themoviedb.org/3/movie/${movie.id}/videos?language=pt-BR&api_key=${apiKey}`;
+        const videosBaseUrl = `https://api.themoviedb.org/3/movie/${movie.id}/videos?language=pt-BR`;
+        const { url: videosUrl, fetchOptions: videosFetchOptions } =
+          createTmdbFetchOptions(apiKey, videosBaseUrl);
 
-        const videosFetchOptions: RequestInit = apiKey.startsWith("eyJ")
-          ? {
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-              },
-            }
-          : {};
-
-        const videosRes = await fetch(videosUrl, videosFetchOptions);
-        if (videosRes.ok) {
-          const videosData = await videosRes.json();
-          videos =
-            videosData.results?.filter(
-              (v: any) => v.site === "YouTube" && v.type === "Trailer"
-            ) || [];
-        }
+        const videosRes = await fetchTmdbApi(videosUrl, videosFetchOptions);
+        const videosData = await videosRes.json();
+        videos =
+          videosData.results?.filter(
+            (v: any) => v.site === "YouTube" && v.type === "Trailer"
+          ) || [];
       } catch (error) {
         console.error("Erro ao buscar vídeos do filme:", error);
       }
@@ -190,67 +242,43 @@ export const createRecommendMovieTool = (env: Env) =>
       // Buscar provedores de streaming do filme
       let watchProviders: any = {};
       try {
-        const providersUrl = apiKey.startsWith("eyJ")
-          ? `https://api.themoviedb.org/3/movie/${movie.id}/watch/providers`
-          : `https://api.themoviedb.org/3/movie/${movie.id}/watch/providers?api_key=${apiKey}`;
+        const providersBaseUrl = `https://api.themoviedb.org/3/movie/${movie.id}/watch/providers`;
+        const { url: providersUrl, fetchOptions: providersFetchOptions } =
+          createTmdbFetchOptions(apiKey, providersBaseUrl);
 
-        const providersFetchOptions: RequestInit = apiKey.startsWith("eyJ")
-          ? {
-              headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-              },
-            }
-          : {};
-
-        const providersRes = await fetch(providersUrl, providersFetchOptions);
-        if (providersRes.ok) {
-          const providersData = await providersRes.json();
-          // Buscar provedores do Brasil (BR)
-          const brProviders = providersData.results?.BR;
-          if (brProviders) {
-            watchProviders = {
-              flatrate:
-                brProviders.flatrate?.map((p: any) => ({
-                  provider_name: p.provider_name,
-                  logo_path: p.logo_path
-                    ? `https://image.tmdb.org/t/p/original${p.logo_path}`
-                    : undefined,
-                })) || [],
-              rent:
-                brProviders.rent?.map((p: any) => ({
-                  provider_name: p.provider_name,
-                  logo_path: p.logo_path
-                    ? `https://image.tmdb.org/t/p/original${p.logo_path}`
-                    : undefined,
-                })) || [],
-              buy:
-                brProviders.buy?.map((p: any) => ({
-                  provider_name: p.provider_name,
-                  logo_path: p.logo_path
-                    ? `https://image.tmdb.org/t/p/original${p.logo_path}`
-                    : undefined,
-                })) || [],
-            };
-          }
+        const providersRes = await fetchTmdbApi(
+          providersUrl,
+          providersFetchOptions
+        );
+        const providersData = await providersRes.json();
+        // Buscar provedores do Brasil (BR)
+        const brProviders = providersData.results?.BR;
+        if (brProviders) {
+          watchProviders = {
+            flatrate: mapProviders(brProviders, "flatrate"),
+            rent: mapProviders(brProviders, "rent"),
+            buy: mapProviders(brProviders, "buy"),
+          };
         }
       } catch (error) {
         console.error("Erro ao buscar provedores de streaming:", error);
       }
 
       // Salvar filme recomendado no banco
-      try {
-        await db.insert(recommendedMoviesTable).values({
-          movieId: movieResult.movieId,
-          title: movieResult.title,
-          poster: movieResult.posterUrl || null,
-          genres: genres.length > 0 ? JSON.stringify(genres) : null,
-          createdAt: new Date(),
-        });
-      } catch (error) {
-        console.error("Erro ao salvar filme recomendado:", error);
+      const db = await getDb(env);
+      await safeDbOperation(
+        () =>
+          db.insert(recommendedMoviesTable).values({
+            movieId: movieResult.movieId,
+            title: movieResult.title,
+            poster: movieResult.posterUrl || null,
+            genres: genres.length > 0 ? JSON.stringify(genres) : null,
+            createdAt: new Date(),
+          }),
+        "Erro ao salvar filme recomendado"
+      ).catch(() => {
         // Não falhar se não conseguir salvar
-      }
+      });
 
       return {
         ...movieResult,
@@ -309,42 +337,11 @@ export const createListMovieGenresTool = (env: Env) =>
       ),
     }),
     execute: async ({ context }) => {
-      const db = await getDb(env);
-      // Busca a chave no banco
-      const apiKeyRow = await db
-        .select()
-        .from(tmdbApiKeyTable)
-        .where(eq(tmdbApiKeyTable.id, 1));
-      console.log("LIST_MOVIE_GENRES - API Key Row:", apiKeyRow);
-      const apiKey = apiKeyRow[0]?.apiKey;
-      console.log("LIST_MOVIE_GENRES - API Key found:", apiKey ? "YES" : "NO");
-      if (!apiKey) {
-        throw new Error(
-          "TMDB API key not configured. Use SET_TMDB_API_KEY para configurar."
-        );
-      }
-      let url = "https://api.themoviedb.org/3/genre/movie/list?language=pt-BR";
-      let fetchOptions: RequestInit = {};
-      if (apiKey.startsWith("eyJ")) {
-        // Token v4
-        fetchOptions.headers = {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        };
-      } else {
-        // API Key v3
-        url += `&api_key=${apiKey}`;
-      }
-      const res = await fetch(url, fetchOptions);
-      let errorBody = "";
-      if (!res.ok) {
-        try {
-          errorBody = await res.text();
-        } catch {}
-        throw new Error(
-          `TMDB API error: ${res.status} ${res.statusText} - ${errorBody}`
-        );
-      }
+      const apiKey = await getTmdbApiKey(env);
+      const baseUrl =
+        "https://api.themoviedb.org/3/genre/movie/list?language=pt-BR";
+      const { url, fetchOptions } = createTmdbFetchOptions(apiKey, baseUrl);
+      const res = await fetchTmdbApi(url, fetchOptions);
       const data = await res.json();
       if (!data.genres || !Array.isArray(data.genres)) {
         throw new Error("Resposta inesperada do TMDB ao buscar gêneros");
@@ -367,37 +364,13 @@ export const createGetMovieReviewsTool = (env: Env) =>
       keyPoints: z.array(z.string()),
     }),
     execute: async ({ context }) => {
-      const db = await getDb(env);
-      // Busca a chave no banco
-      const apiKeyRow = await db
-        .select()
-        .from(tmdbApiKeyTable)
-        .where(eq(tmdbApiKeyTable.id, 1));
-      const apiKey = apiKeyRow[0]?.apiKey;
-      if (!apiKey) {
-        throw new Error(
-          "TMDB API key not configured. Use SET_TMDB_API_KEY para configurar."
-        );
-      }
+      const apiKey = await getTmdbApiKey(env);
 
       // Buscar reviews do filme
-      let url = `https://api.themoviedb.org/3/movie/${context.movieId}/reviews?language=pt-BR&page=1`;
-      let fetchOptions: RequestInit = {};
-      if (apiKey.startsWith("eyJ")) {
-        // Token v4
-        fetchOptions.headers = {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        };
-      } else {
-        // API Key v3
-        url += `&api_key=${apiKey}`;
-      }
+      const baseUrl = `https://api.themoviedb.org/3/movie/${context.movieId}/reviews?language=pt-BR&page=1`;
+      const { url, fetchOptions } = createTmdbFetchOptions(apiKey, baseUrl);
 
-      const res = await fetch(url, fetchOptions);
-      if (!res.ok) {
-        throw new Error(`TMDB API error: ${res.status}`);
-      }
+      const res = await fetchTmdbApi(url, fetchOptions);
 
       const data = await res.json();
       const reviews = data.results || [];
@@ -537,7 +510,7 @@ export const createGetRecommendedMoviesTool = (env: Env) =>
             movieId: movie.movieId,
             title: movie.title,
             poster: movie.poster,
-            genres: movie.genres ? JSON.parse(movie.genres) : [],
+            genres: parseGenres(movie.genres),
             createdAt: movie.createdAt
               ? new Date(movie.createdAt).toISOString()
               : new Date().toISOString(),
@@ -567,37 +540,40 @@ export const createAddWatchedMovieTool = (env: Env) =>
     execute: async ({ context }) => {
       const db = await getDb(env);
 
-      try {
-        // Verificar se já existe
-        const existing = await db
-          .select()
-          .from(watchedMoviesTable)
-          .where(eq(watchedMoviesTable.movieId, context.movieId))
-          .limit(1);
+      // Verificar se já existe
+      const existing = await safeDbOperation(
+        () =>
+          db
+            .select()
+            .from(watchedMoviesTable)
+            .where(eq(watchedMoviesTable.movieId, context.movieId))
+            .limit(1),
+        "Erro ao verificar filme existente"
+      );
 
-        if (existing.length > 0) {
-          throw new Error("Filme já está na lista de assistidos");
-        }
-
-        const result = await db
-          .insert(watchedMoviesTable)
-          .values({
-            movieId: context.movieId,
-            title: context.title,
-            poster: context.poster || null,
-            genres: context.genres ? JSON.stringify(context.genres) : null,
-            createdAt: new Date(),
-          })
-          .returning({ id: watchedMoviesTable.id });
-
-        return {
-          success: true,
-          id: result[0].id,
-        };
-      } catch (error) {
-        console.error("Erro ao adicionar filme assistido:", error);
-        throw new Error("Falha ao adicionar filme assistido");
+      if (existing.length > 0) {
+        throw new Error("Filme já está na lista de assistidos");
       }
+
+      const result = await safeDbOperation(
+        () =>
+          db
+            .insert(watchedMoviesTable)
+            .values({
+              movieId: context.movieId,
+              title: context.title,
+              poster: context.poster || null,
+              genres: context.genres ? JSON.stringify(context.genres) : null,
+              createdAt: new Date(),
+            })
+            .returning({ id: watchedMoviesTable.id }),
+        "Erro ao adicionar filme assistido"
+      );
+
+      return {
+        success: true,
+        id: result[0].id,
+      };
     },
   });
 
@@ -614,18 +590,17 @@ export const createRemoveWatchedMovieTool = (env: Env) =>
     execute: async ({ context }) => {
       const db = await getDb(env);
 
-      try {
-        await db
-          .delete(watchedMoviesTable)
-          .where(eq(watchedMoviesTable.movieId, context.movieId));
+      await safeDbOperation(
+        () =>
+          db
+            .delete(watchedMoviesTable)
+            .where(eq(watchedMoviesTable.movieId, context.movieId)),
+        "Erro ao remover filme assistido"
+      );
 
-        return {
-          success: true,
-        };
-      } catch (error) {
-        console.error("Erro ao remover filme assistido:", error);
-        throw new Error("Falha ao remover filme assistido");
-      }
+      return {
+        success: true,
+      };
     },
   });
 
@@ -650,29 +625,28 @@ export const createGetWatchedMoviesTool = (env: Env) =>
     execute: async ({ context }) => {
       const db = await getDb(env);
 
-      try {
-        const movies = await db
-          .select()
-          .from(watchedMoviesTable)
-          .orderBy(watchedMoviesTable.createdAt);
+      const movies = await safeDbOperation(
+        () =>
+          db
+            .select()
+            .from(watchedMoviesTable)
+            .orderBy(watchedMoviesTable.createdAt),
+        "Erro ao buscar filmes assistidos"
+      );
 
-        return {
-          movies: movies.map((movie) => ({
-            id: movie.id,
-            movieId: movie.movieId,
-            title: movie.title,
-            poster: movie.poster,
-            genres: movie.genres ? JSON.parse(movie.genres) : [],
-            rating: movie.rating,
-            createdAt: movie.createdAt
-              ? new Date(movie.createdAt).toISOString()
-              : new Date().toISOString(),
-          })),
-        };
-      } catch (error) {
-        console.error("Erro ao buscar filmes assistidos:", error);
-        throw new Error("Falha ao buscar filmes assistidos");
-      }
+      return {
+        movies: movies.map((movie) => ({
+          id: movie.id,
+          movieId: movie.movieId,
+          title: movie.title,
+          poster: movie.poster,
+          genres: parseGenres(movie.genres),
+          rating: movie.rating,
+          createdAt: movie.createdAt
+            ? new Date(movie.createdAt).toISOString()
+            : new Date().toISOString(),
+        })),
+      };
     },
   });
 
@@ -692,21 +666,29 @@ export const createUpdateMovieRatingTool = (env: Env) =>
       const db = await getDb(env);
 
       // Verificar se o filme existe na lista de assistidos
-      const existingMovie = await db
-        .select()
-        .from(watchedMoviesTable)
-        .where(eq(watchedMoviesTable.movieId, context.movieId))
-        .limit(1);
+      const existingMovie = await safeDbOperation(
+        () =>
+          db
+            .select()
+            .from(watchedMoviesTable)
+            .where(eq(watchedMoviesTable.movieId, context.movieId))
+            .limit(1),
+        "Erro ao verificar filme existente"
+      );
 
       if (existingMovie.length === 0) {
         throw new Error("Filme não encontrado na lista de assistidos");
       }
 
       // Atualizar a avaliação
-      await db
-        .update(watchedMoviesTable)
-        .set({ rating: context.rating })
-        .where(eq(watchedMoviesTable.movieId, context.movieId));
+      await safeDbOperation(
+        () =>
+          db
+            .update(watchedMoviesTable)
+            .set({ rating: context.rating })
+            .where(eq(watchedMoviesTable.movieId, context.movieId)),
+        "Erro ao atualizar avaliação"
+      );
 
       return {
         success: true,
@@ -737,10 +719,14 @@ export const createSuggestGenresTool = (env: Env) =>
       const db = await getDb(env);
 
       // Buscar filmes assistidos
-      const watchedMovies = await db
-        .select()
-        .from(watchedMoviesTable)
-        .orderBy(desc(watchedMoviesTable.createdAt));
+      const watchedMovies = await safeDbOperation(
+        () =>
+          db
+            .select()
+            .from(watchedMoviesTable)
+            .orderBy(desc(watchedMoviesTable.createdAt)),
+        "Erro ao buscar filmes assistidos"
+      );
 
       if (watchedMovies.length === 0) {
         // Se não há filmes assistidos, sugerir gêneros populares
@@ -771,7 +757,7 @@ export const createSuggestGenresTool = (env: Env) =>
       watchedMovies.forEach((movie) => {
         if (movie.genres) {
           try {
-            const genres = JSON.parse(movie.genres);
+            const genres = parseGenres(movie.genres);
             if (Array.isArray(genres)) {
               genres.forEach((genre) => {
                 if (genreFrequency[genre]) {
@@ -894,33 +880,12 @@ function getGenreIdByName(genreName: string): number {
 
 // Função auxiliar para buscar todos os gêneros
 async function getAllGenres(env: Env) {
-  const db = await getDb(env);
-  const apiKeyRow = await db
-    .select()
-    .from(tmdbApiKeyTable)
-    .where(eq(tmdbApiKeyTable.id, 1));
-  const apiKey = apiKeyRow[0]?.apiKey;
+  const apiKey = await getTmdbApiKey(env);
+  const baseUrl =
+    "https://api.themoviedb.org/3/genre/movie/list?language=pt-BR";
+  const { url, fetchOptions } = createTmdbFetchOptions(apiKey, baseUrl);
 
-  if (!apiKey) {
-    throw new Error("TMDB API key not configured");
-  }
-
-  let url = "https://api.themoviedb.org/3/genre/movie/list?language=pt-BR";
-  let fetchOptions: RequestInit = {};
-
-  if (apiKey.startsWith("eyJ")) {
-    fetchOptions.headers = {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    };
-  } else {
-    url += `&api_key=${apiKey}`;
-  }
-
-  const res = await fetch(url, fetchOptions);
-  if (!res.ok) {
-    throw new Error(`TMDB API error: ${res.status}`);
-  }
+  const res = await fetchTmdbApi(url, fetchOptions);
 
   const data = await res.json();
   return data.genres || [];
@@ -956,10 +921,14 @@ export const createAnalyzeWatchedMoviesTool = (env: Env) =>
 
       try {
         // Buscar filmes assistidos
-        const watchedMovies = await db
-          .select()
-          .from(watchedMoviesTable)
-          .orderBy(desc(watchedMoviesTable.createdAt));
+        const watchedMovies = await safeDbOperation(
+          () =>
+            db
+              .select()
+              .from(watchedMoviesTable)
+              .orderBy(desc(watchedMoviesTable.createdAt)),
+          "Erro ao buscar filmes assistidos"
+        );
 
         if (watchedMovies.length === 0) {
           return {
@@ -995,7 +964,7 @@ export const createAnalyzeWatchedMoviesTool = (env: Env) =>
         let lowRated = 0;
 
         watchedMovies.forEach((movie) => {
-          const genres = movie.genres ? JSON.parse(movie.genres) : [];
+          const genres = parseGenres(movie.genres);
           const rating = movie.rating || 0;
 
           if (rating > 0) {
