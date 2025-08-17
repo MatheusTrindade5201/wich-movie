@@ -1,0 +1,1 @@
+ALTER TABLE `watched_movies` ADD `rating` integer;

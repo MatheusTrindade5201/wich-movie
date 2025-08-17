@@ -53,6 +53,7 @@ export interface WatchedMovie {
   title: string;
   poster: string | null;
   genres: string | null;
+  rating: number | null;
   createdAt: string;
 }
 
@@ -85,6 +86,10 @@ interface CustomTools {
   REMOVE_WATCHED_MOVIE: (input: {
     movieId: number;
   }) => Promise<{ success: boolean }>;
+  UPDATE_MOVIE_RATING: (input: {
+    movieId: number;
+    rating: number;
+  }) => Promise<{ success: boolean; message: string }>;
   SUGGEST_GENRES: (input: {
     preference: "comfort" | "new";
   }) => Promise<GenreSuggestion>;
@@ -131,6 +136,13 @@ class RPCClient {
             // Verificar se há erro
             if (jsonData.error) {
               throw new Error(`RPC error: ${jsonData.error.message}`);
+            }
+
+            // Verificar se há erro no resultado
+            if (jsonData.result && jsonData.result.isError) {
+              throw new Error(
+                `Tool error: ${jsonData.result.content?.[0]?.text || "Unknown error"}`
+              );
             }
 
             // Extrair dados do formato do Deco
@@ -197,6 +209,13 @@ class RPCClient {
     movieId: number;
   }): Promise<{ success: boolean }> {
     return this.callTool("REMOVE_WATCHED_MOVIE", input);
+  }
+
+  async UPDATE_MOVIE_RATING(input: {
+    movieId: number;
+    rating: number;
+  }): Promise<{ success: boolean; message: string }> {
+    return this.callTool("UPDATE_MOVIE_RATING", input);
   }
 
   async SUGGEST_GENRES(input: {

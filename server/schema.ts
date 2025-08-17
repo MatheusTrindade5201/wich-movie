@@ -27,6 +27,7 @@ export const watchedMoviesTable = sqliteTable("watched_movies", {
   movieId: integer("movie_id").notNull(),
   title: text("title").notNull(),
   poster: text("poster"),
-  genres: text("genres"), // JSON string dos gêneros
+  genres: text("genres"),
+  rating: integer("rating"), // 1-5 estrelas, null se não avaliado
   createdAt: integer("created_at", { mode: "timestamp" }),
 });

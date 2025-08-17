@@ -642,6 +642,7 @@ export const createGetWatchedMoviesTool = (env: Env) =>
           title: z.string(),
           poster: z.string().nullable(),
           genres: z.array(z.string()),
+          rating: z.number().nullable(),
           createdAt: z.string(),
         })
       ),
@@ -662,6 +663,7 @@ export const createGetWatchedMoviesTool = (env: Env) =>
             title: movie.title,
             poster: movie.poster,
             genres: movie.genres ? JSON.parse(movie.genres) : [],
+            rating: movie.rating,
             createdAt: movie.createdAt
               ? new Date(movie.createdAt).toISOString()
               : new Date().toISOString(),
@@ -671,6 +673,45 @@ export const createGetWatchedMoviesTool = (env: Env) =>
         console.error("Erro ao buscar filmes assistidos:", error);
         throw new Error("Falha ao buscar filmes assistidos");
       }
+    },
+  });
+
+export const createUpdateMovieRatingTool = (env: Env) =>
+  createTool({
+    id: "UPDATE_MOVIE_RATING",
+    description: "Atualiza a avaliação de um filme assistido (1-5 estrelas)",
+    inputSchema: z.object({
+      movieId: z.number(),
+      rating: z.number().min(1).max(5),
+    }),
+    outputSchema: z.object({
+      success: z.boolean(),
+      message: z.string(),
+    }),
+    execute: async ({ context }) => {
+      const db = await getDb(env);
+
+      // Verificar se o filme existe na lista de assistidos
+      const existingMovie = await db
+        .select()
+        .from(watchedMoviesTable)
+        .where(eq(watchedMoviesTable.movieId, context.movieId))
+        .limit(1);
+
+      if (existingMovie.length === 0) {
+        throw new Error("Filme não encontrado na lista de assistidos");
+      }
+
+      // Atualizar a avaliação
+      await db
+        .update(watchedMoviesTable)
+        .set({ rating: context.rating })
+        .where(eq(watchedMoviesTable.movieId, context.movieId));
+
+      return {
+        success: true,
+        message: `Avaliação atualizada para ${context.rating} estrelas`,
+      };
     },
   });
 
@@ -718,7 +759,13 @@ export const createSuggestGenresTool = (env: Env) =>
 
       // Analisar gêneros dos filmes assistidos
       const genreFrequency: {
-        [key: string]: { count: number; name: string; id: number };
+        [key: string]: {
+          count: number;
+          name: string;
+          id: number;
+          totalRating: number;
+          avgRating: number;
+        };
       } = {};
 
       watchedMovies.forEach((movie) => {
@@ -729,6 +776,9 @@ export const createSuggestGenresTool = (env: Env) =>
               genres.forEach((genre) => {
                 if (genreFrequency[genre]) {
                   genreFrequency[genre].count++;
+                  if (movie.rating) {
+                    genreFrequency[genre].totalRating += movie.rating;
+                  }
                 } else {
                   // Buscar ID do gênero pelo nome
                   const genreId = getGenreIdByName(genre);
@@ -736,6 +786,8 @@ export const createSuggestGenresTool = (env: Env) =>
                     count: 1,
                     name: genre,
                     id: genreId,
+                    totalRating: movie.rating || 0,
+                    avgRating: movie.rating || 0,
                   };
                 }
               });
@@ -746,10 +798,28 @@ export const createSuggestGenresTool = (env: Env) =>
         }
       });
 
-      // Ordenar gêneros por frequência
-      const sortedGenres = Object.values(genreFrequency).sort(
-        (a, b) => b.count - a.count
-      );
+      // Calcular média de avaliação para cada gênero
+      Object.values(genreFrequency).forEach((genre) => {
+        genre.avgRating = genre.count > 0 ? genre.totalRating / genre.count : 0;
+      });
+
+      // Ordenar gêneros por frequência e avaliação
+      const sortedGenres = Object.values(genreFrequency).sort((a, b) => {
+        // Para zona de conforto: priorizar gêneros com alta avaliação
+        if (context.preference === "comfort") {
+          // Ordenar por avaliação média (decrescente), depois por frequência
+          if (Math.abs(a.avgRating - b.avgRating) > 0.5) {
+            return b.avgRating - a.avgRating;
+          }
+          return b.count - a.count;
+        } else {
+          // Para experiência nova: priorizar gêneros com baixa avaliação ou não avaliados
+          if (Math.abs(a.avgRating - b.avgRating) > 0.5) {
+            return a.avgRating - b.avgRating;
+          }
+          return a.count - b.count;
+        }
+      });
 
       // Buscar todos os gêneros disponíveis
       const allGenres = await getAllGenres(env);
@@ -760,7 +830,10 @@ export const createSuggestGenresTool = (env: Env) =>
         const suggestedGenres = topGenres.map((genre) => ({
           id: genre.id,
           name: genre.name,
-          reason: `Você assistiu ${genre.count} filmes deste gênero`,
+          reason:
+            genre.avgRating > 0
+              ? `Você assistiu ${genre.count} filmes deste gênero com avaliação média de ${genre.avgRating.toFixed(1)}/5`
+              : `Você assistiu ${genre.count} filmes deste gênero`,
         }));
 
         return {
@@ -863,5 +936,6 @@ export const tools = [
   createAddWatchedMovieTool,
   createRemoveWatchedMovieTool,
   createGetWatchedMoviesTool,
+  createUpdateMovieRatingTool,
   createSuggestGenresTool,
 ];

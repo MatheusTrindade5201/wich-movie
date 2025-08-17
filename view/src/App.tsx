@@ -39,6 +39,7 @@ function App() {
     useState<GenreSuggestion | null>(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const [addingToWatchedLoading, setAddingToWatchedLoading] = useState(false);
 
   const handleIncludeGenre = (genreId: number) => {
     if (selectedGenres.includes(genreId)) {
@@ -148,6 +149,7 @@ function App() {
   const handleAddToWatched = async (
     movie: RecommendedMovie | MovieRecommendation
   ) => {
+    setAddingToWatchedLoading(true);
     try {
       const genres = "genres" in movie && movie.genres ? movie.genres : [];
       const poster = "posterUrl" in movie ? movie.posterUrl : movie.poster;
@@ -164,6 +166,12 @@ function App() {
       setWatchedMovies(sortMoviesByDate(watchedData.movies));
     } catch (err) {
       console.error("Erro ao adicionar filme assistido:", err);
+      alert(
+        "Erro ao adicionar filme assistido: " +
+          (err instanceof Error ? err.message : "Erro desconhecido")
+      );
+    } finally {
+      setAddingToWatchedLoading(false);
     }
   };
 
@@ -179,8 +187,62 @@ function App() {
     }
   };
 
+  const handleUpdateRating = async (movieId: number, rating: number) => {
+    try {
+      const result = await client.UPDATE_MOVIE_RATING({ movieId, rating });
+
+      // Recarregar lista de filmes assistidos e ordenar
+      const watchedData = await client.GET_WATCHED_MOVIES();
+      setWatchedMovies(sortMoviesByDate(watchedData.movies));
+    } catch (err) {
+      console.error("Erro ao atualizar avaliação:", err);
+      alert(
+        "Erro ao atualizar avaliação: " +
+          (err instanceof Error ? err.message : "Erro desconhecido")
+      );
+    }
+  };
+
   const isMovieWatched = (movieId: number) => {
     return watchedMovies.some((movie) => movie.movieId === movieId);
+  };
+
+  const StarRating = ({
+    rating,
+    onRatingChange,
+    movieId,
+  }: {
+    rating: number | null;
+    onRatingChange: (rating: number) => void;
+    movieId: number;
+  }) => {
+    return (
+      <div style={{ display: "flex", gap: "2px", alignItems: "center" }}>
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            onClick={() => onRatingChange(star)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "16px",
+              color: rating && star <= rating ? "#fbbf24" : "#6b7280",
+              padding: "2px",
+            }}
+          >
+            {rating && star <= rating ? "★" : "☆"}
+          </button>
+        ))}
+        {rating && (
+          <span
+            style={{ fontSize: "12px", color: "#94a3b8", marginLeft: "5px" }}
+          >
+            {rating}/5
+          </span>
+        )}
+      </div>
+    );
   };
 
   const handleOpenSuggestionModal = async () => {
@@ -445,38 +507,72 @@ function App() {
               {/* Botão Adicionar/Remover da Lista de Assistidos */}
               <div style={{ marginBottom: "20px" }}>
                 {isMovieWatched(recommendation.movieId) ? (
-                  <button
-                    onClick={() =>
-                      handleRemoveFromWatched(recommendation.movieId)
-                    }
-                    style={{
-                      padding: "8px 16px",
-                      backgroundColor: "#ef4444",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "5px",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    ❌ Remover dos Assistidos
-                  </button>
+                  <div>
+                    <button
+                      onClick={() =>
+                        handleRemoveFromWatched(recommendation.movieId)
+                      }
+                      style={{
+                        padding: "8px 16px",
+                        backgroundColor: "#ef4444",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "5px",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        fontWeight: "bold",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      ❌ Remover dos Assistidos
+                    </button>
+
+                    {/* Estrelas para avaliação */}
+                    <div style={{ marginTop: "10px" }}>
+                      <p
+                        style={{
+                          color: "#94a3b8",
+                          fontSize: "14px",
+                          marginBottom: "5px",
+                        }}
+                      >
+                        Como você avalia este filme?
+                      </p>
+                      <StarRating
+                        rating={
+                          watchedMovies.find(
+                            (m) => m.movieId === recommendation.movieId
+                          )?.rating || null
+                        }
+                        onRatingChange={(rating) =>
+                          handleUpdateRating(recommendation.movieId, rating)
+                        }
+                        movieId={recommendation.movieId}
+                      />
+                    </div>
+                  </div>
                 ) : (
                   <button
                     onClick={() => handleAddToWatched(recommendation)}
+                    disabled={addingToWatchedLoading}
                     style={{
                       padding: "8px 16px",
-                      backgroundColor: "#10b981",
+                      backgroundColor: addingToWatchedLoading
+                        ? "#6b7280"
+                        : "#10b981",
                       color: "white",
                       border: "none",
                       borderRadius: "5px",
-                      cursor: "pointer",
+                      cursor: addingToWatchedLoading
+                        ? "not-allowed"
+                        : "pointer",
                       fontSize: "12px",
                       fontWeight: "bold",
                     }}
                   >
-                    ✅ Marcar como Assistido
+                    {addingToWatchedLoading
+                      ? "⏳ Adicionando..."
+                      : "✅ Marcar como Assistido"}
                   </button>
                 )}
               </div>
@@ -1016,6 +1112,15 @@ function App() {
                               {formatGenres(movie.genres)}
                             </p>
                           )}
+                          <div style={{ marginTop: "8px" }}>
+                            <StarRating
+                              rating={movie.rating}
+                              onRatingChange={(rating) =>
+                                handleUpdateRating(movie.movieId, rating)
+                              }
+                              movieId={movie.movieId}
+                            />
+                          </div>
                         </div>
                         <button
                           onClick={() => handleRemoveFromWatched(movie.movieId)}
