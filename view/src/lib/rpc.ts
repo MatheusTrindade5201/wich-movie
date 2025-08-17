@@ -1,0 +1,125 @@
+// Interfaces para as tools
+export interface MovieGenre {
+  id: number;
+  name: string;
+}
+
+export interface MovieVideo {
+  key: string;
+  name: string;
+  site: string;
+  type: string;
+}
+
+export interface WatchProvider {
+  provider_name: string;
+  logo_path?: string;
+}
+
+export interface WatchProviders {
+  flatrate?: WatchProvider[];
+  rent?: WatchProvider[];
+  buy?: WatchProvider[];
+}
+
+export interface MovieRecommendation {
+  movieId: number;
+  title: string;
+  overview: string;
+  posterUrl: string;
+  videos?: MovieVideo[];
+  watchProviders?: WatchProviders;
+}
+
+interface CustomTools {
+  LIST_MOVIE_GENRES: () => Promise<{ genres: MovieGenre[] }>;
+  RECOMMEND_MOVIE: (input: {
+    includeGenreIds: number[];
+    excludeGenreIds?: number[];
+  }) => Promise<MovieRecommendation>;
+}
+
+// Cliente RPC simples para comunicação com o servidor MCP
+class RPCClient {
+  private baseUrl = "/mcp";
+
+  async callTool<T>(toolName: string, args: any = {}): Promise<T> {
+    const response = await fetch(`${this.baseUrl}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: toolName,
+          arguments: args,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    // Verificar se a resposta é um stream de eventos
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("text/event-stream")) {
+      const text = await response.text();
+      const lines = text.split("\n");
+
+      // Procurar pela linha que contém o resultado JSON
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const jsonData = JSON.parse(line.slice(6)); // Remove 'data: '
+
+            // Verificar se há erro
+            if (jsonData.error) {
+              throw new Error(`RPC error: ${jsonData.error.message}`);
+            }
+
+            // Extrair dados do formato do Deco
+            if (jsonData.result && jsonData.result.structuredContent) {
+              return jsonData.result.structuredContent;
+            }
+
+            // Fallback para formato direto
+            if (jsonData.result) {
+              return jsonData.result;
+            }
+          } catch (parseError) {
+            // Ignorar linhas que não são JSON válido
+            continue;
+          }
+        }
+      }
+      throw new Error("No valid response found in event stream");
+    } else {
+      // Resposta JSON normal
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(`RPC error: ${data.error.message}`);
+      }
+
+      return data.result;
+    }
+  }
+
+  async LIST_MOVIE_GENRES(): Promise<{ genres: MovieGenre[] }> {
+    return this.callTool<{ genres: MovieGenre[] }>("LIST_MOVIE_GENRES");
+  }
+
+  async RECOMMEND_MOVIE(input: {
+    includeGenreIds: number[];
+    excludeGenreIds?: number[];
+  }): Promise<MovieRecommendation> {
+    return this.callTool<MovieRecommendation>("RECOMMEND_MOVIE", input);
+  }
+}
+
+export const client = new RPCClient() as unknown as CustomTools;
