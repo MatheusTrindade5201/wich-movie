@@ -75,7 +75,6 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   historyError,
   removingFromWatchedLoading,
   addingToWatchedLoading,
-  ratingLoading,
   onRemoveFromWatched,
   onAddToWatched,
   onUpdateRating,

@@ -31,3 +31,10 @@ export const watchedMoviesTable = sqliteTable("watched_movies", {
   rating: integer("rating"), // 1-5 estrelas, null se não avaliado
   createdAt: integer("created_at", { mode: "timestamp" }),
 });
+
+// Tabela para todos
+export const todosTable = sqliteTable("todos", {
+  id: integer("id").primaryKey(),
+  title: text("title"),
+  completed: integer("completed").default(0),
+});

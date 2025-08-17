@@ -75,33 +75,6 @@ const STYLES = {
   },
 } as const;
 
-// Custom hook para operações assíncronas
-// NOTA: Este hook deve ser usado apenas para operações manuais, não em useEffect
-function useAsyncOperation<T>() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<T | null>(null);
-
-  const execute = async (operation: () => Promise<T>) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await operation();
-      setData(result);
-      return result;
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Erro desconhecido";
-      setError(errorMessage);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { loading, error, data, execute };
-}
-
 // Componentes reutilizáveis
 const LoadingSpinner = ({
   width = 200,
@@ -143,21 +116,6 @@ const CloseButton = ({
     <CloseIcon />
   </IconButton>
 );
-
-// Helper para operações assíncronas com tratamento de erro
-const withErrorHandling = async <T,>(
-  operation: () => Promise<T>,
-  setError: (error: string | null) => void,
-  errorMessage: string
-): Promise<T> => {
-  try {
-    return await operation();
-  } catch (err) {
-    const message = err instanceof Error ? err.message : errorMessage;
-    setError(message);
-    throw err;
-  }
-};
 
 // Tema escuro personalizado
 const theme = createTheme({

@@ -36,6 +36,13 @@
       "when": 1755443690301,
       "tag": "0004_curly_sheva_callister",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1755454371369,
+      "tag": "0005_chief_talon",
+      "breakpoints": true
     }
   ]
 }
