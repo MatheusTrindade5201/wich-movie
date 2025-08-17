@@ -1,6 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { client } from "./lib/rpc";
-import { useMovieGenres } from "./lib/hooks";
 import type {
   MovieRecommendation,
   MovieReviews,
@@ -8,6 +7,206 @@ import type {
   WatchedMovie,
   GenreSuggestion,
 } from "./lib/rpc";
+import {
+  Button,
+  Card,
+  CardContent,
+  Typography,
+  Box,
+  Modal,
+  IconButton,
+  Chip,
+  Rating,
+  Fab,
+  AppBar,
+  Toolbar,
+  Container,
+  Grid,
+  Paper,
+  Divider,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  LinearProgress,
+  CircularProgress,
+  Alert,
+  ThemeProvider,
+  createTheme,
+} from "@mui/material";
+import {
+  Movie as MovieIcon,
+  Star as StarIcon,
+  History as HistoryIcon,
+  Close as CloseIcon,
+  PlayArrow as PlayIcon,
+  Stop as StopIcon,
+  Add as AddIcon,
+  Remove as RemoveIcon,
+  AutoAwesome as AutoAwesomeIcon,
+  Home as HomeIcon,
+  Psychology as PsychologyIcon,
+  Explore as ExploreIcon,
+  Visibility as VisibilityIcon,
+  Recommend as RecommendIcon,
+  CheckCircle as CheckCircleIcon,
+  Cancel as CancelIcon,
+  LibraryBooks as LibraryBooksIcon,
+  LocalMovies as LocalMoviesIcon,
+} from "@mui/icons-material";
+
+// Tema escuro personalizado
+const theme = createTheme({
+  palette: {
+    mode: "dark",
+    primary: {
+      main: "#60a5fa", // Azul mais vibrante para tema escuro
+    },
+    secondary: {
+      main: "#a78bfa", // Roxo mais vibrante para tema escuro
+    },
+    success: {
+      main: "#34d399", // Verde mais vibrante para tema escuro
+    },
+    error: {
+      main: "#f87171", // Vermelho mais vibrante para tema escuro
+    },
+    warning: {
+      main: "#fbbf24", // Amarelo mais vibrante para tema escuro
+    },
+    background: {
+      default: "#0f172a", // Slate 900 - fundo principal escuro
+      paper: "#1e293b", // Slate 800 - fundo de cards escuro
+    },
+    text: {
+      primary: "#f1f5f9", // Slate 100 - texto principal
+      secondary: "#cbd5e1", // Slate 300 - texto secundário
+    },
+    divider: "#334155", // Slate 700 - divisores
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h3: {
+      fontWeight: 700,
+      color: "#f1f5f9",
+    },
+    h4: {
+      fontWeight: 600,
+      color: "#f1f5f9",
+    },
+    h5: {
+      fontWeight: 600,
+      color: "#f1f5f9",
+    },
+    h6: {
+      fontWeight: 600,
+      color: "#f1f5f9",
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: "none",
+          borderRadius: 8,
+          fontWeight: 600,
+          "&:hover": {
+            transform: "translateY(-1px)",
+            boxShadow: "0 10px 25px rgba(0, 0, 0, 0.3)",
+          },
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 12,
+          backgroundColor: "#1e293b",
+          boxShadow:
+            "0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)",
+          border: "1px solid #334155",
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          borderRadius: 16,
+          fontWeight: 500,
+          "&:hover": {
+            transform: "scale(1.05)",
+          },
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#1e293b",
+          borderBottom: "1px solid #334155",
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#1e293b",
+          border: "1px solid #334155",
+        },
+      },
+    },
+    MuiModal: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "rgba(0, 0, 0, 0.8)",
+        },
+      },
+    },
+    MuiRating: {
+      styleOverrides: {
+        root: {
+          "& .MuiRating-iconFilled": {
+            color: "#fbbf24",
+          },
+          "& .MuiRating-iconHover": {
+            color: "#f59e0b",
+          },
+        },
+      },
+    },
+  },
+});
+
+// Hook para buscar gêneros de filmes
+const useMovieGenres = () => {
+  const [genres, setGenres] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchGenres = async () => {
+      try {
+        const data = await client.LIST_MOVIE_GENRES();
+        setGenres(data.genres);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Erro ao carregar gêneros"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGenres();
+  }, []);
+
+  return { genres, loading, error };
+};
 
 function App() {
   const {
@@ -40,6 +239,13 @@ function App() {
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [addingToWatchedLoading, setAddingToWatchedLoading] = useState(false);
+  const [removingFromWatchedLoading, setRemovingFromWatchedLoading] = useState<
+    number | null
+  >(null);
+  const [ratingLoading, setRatingLoading] = useState<number | null>(null);
+  const [historyView, setHistoryView] = useState<"watched" | "recommended">(
+    "watched"
+  );
 
   const handleIncludeGenre = (genreId: number) => {
     if (selectedGenres.includes(genreId)) {
@@ -176,6 +382,7 @@ function App() {
   };
 
   const handleRemoveFromWatched = async (movieId: number) => {
+    setRemovingFromWatchedLoading(movieId);
     try {
       await client.REMOVE_WATCHED_MOVIE({ movieId });
 
@@ -184,10 +391,13 @@ function App() {
       setWatchedMovies(sortMoviesByDate(watchedData.movies));
     } catch (err) {
       console.error("Erro ao remover filme assistido:", err);
+    } finally {
+      setRemovingFromWatchedLoading(null);
     }
   };
 
   const handleUpdateRating = async (movieId: number, rating: number) => {
+    setRatingLoading(movieId);
     try {
       const result = await client.UPDATE_MOVIE_RATING({ movieId, rating });
 
@@ -200,6 +410,8 @@ function App() {
         "Erro ao atualizar avaliação: " +
           (err instanceof Error ? err.message : "Erro desconhecido")
       );
+    } finally {
+      setRatingLoading(null);
     }
   };
 
@@ -216,32 +428,44 @@ function App() {
     onRatingChange: (rating: number) => void;
     movieId: number;
   }) => {
+    const isLoading = ratingLoading === movieId;
+
     return (
-      <div style={{ display: "flex", gap: "2px", alignItems: "center" }}>
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            onClick={() => onRatingChange(star)}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "16px",
-              color: rating && star <= rating ? "#fbbf24" : "#6b7280",
-              padding: "2px",
-            }}
-          >
-            {rating && star <= rating ? "★" : "☆"}
-          </button>
-        ))}
-        {rating && (
-          <span
-            style={{ fontSize: "12px", color: "#94a3b8", marginLeft: "5px" }}
-          >
-            {rating}/5
-          </span>
+      <Box display="flex" alignItems="center" gap={1}>
+        {isLoading ? (
+          <Box display="flex" alignItems="center" gap={1}>
+            <CircularProgress size={20} />
+            <Typography variant="body2" color="text.secondary">
+              Salvando...
+            </Typography>
+          </Box>
+        ) : (
+          <>
+            <Rating
+              value={rating || 0}
+              onChange={(_, newValue) => {
+                if (newValue !== null) {
+                  onRatingChange(newValue);
+                }
+              }}
+              size="large"
+              sx={{
+                "& .MuiRating-iconFilled": {
+                  color: "#fbbf24",
+                },
+                "& .MuiRating-iconHover": {
+                  color: "#f59e0b",
+                },
+              }}
+            />
+            {rating && (
+              <Typography variant="body2" color="text.secondary">
+                {rating}/5
+              </Typography>
+            )}
+          </>
         )}
-      </div>
+      </Box>
     );
   };
 
@@ -283,17 +507,62 @@ function App() {
     setShowGenres(false);
   };
 
-  const formatGenres = (genresString: string | null): string => {
-    if (!genresString) return "";
+  const formatGenres = (genresInput: string | string[] | null): string[] => {
+    if (!genresInput) return [];
 
-    try {
-      const parsedGenres = JSON.parse(genresString);
-      return Array.isArray(parsedGenres)
-        ? parsedGenres.join(", ")
-        : genresString;
-    } catch {
-      return genresString;
+    // Se já é um array, retorna diretamente
+    if (Array.isArray(genresInput)) {
+      return genresInput;
     }
+
+    // Se é uma string, tenta fazer parse
+    try {
+      const parsedGenres = JSON.parse(genresInput);
+      return Array.isArray(parsedGenres) ? parsedGenres : [genresInput];
+    } catch {
+      // Se não consegue fazer parse, pode ser uma string concatenada
+      // Tenta dividir por vírgulas ou espaços
+      if (typeof genresInput === "string") {
+        // Remove espaços extras e divide por vírgulas
+        return genresInput
+          .split(",")
+          .map((genre) => genre.trim())
+          .filter((genre) => genre.length > 0);
+      }
+      return [genresInput];
+    }
+  };
+
+  const renderGenres = (genres: string | string[] | null) => {
+    if (!genres) return null;
+
+    const formattedGenres = formatGenres(genres);
+    console.log("Genres:", genres, "Formatted:", formattedGenres);
+
+    return (
+      <Box sx={{ mb: 1 }}>
+        <Box display="flex" flexWrap="wrap" gap={0.5}>
+          {formattedGenres.map((genre, index) => (
+            <Chip
+              key={index}
+              label={genre}
+              size="small"
+              variant="outlined"
+              sx={{
+                height: 20,
+                fontSize: "0.7rem",
+                backgroundColor: "rgba(51, 65, 85, 0.3)",
+                borderColor: "rgba(148, 163, 184, 0.3)",
+                color: "text.secondary",
+                "& .MuiChip-label": {
+                  px: 1,
+                },
+              }}
+            />
+          ))}
+        </Box>
+      </Box>
+    );
   };
 
   const sortMoviesByDate = <T extends { createdAt: string }>(
@@ -305,1471 +574,1362 @@ function App() {
     );
   };
 
+  // Loading states
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#1e293b",
-          color: "white",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        <div>Buscando...</div>
-      </div>
+      <ThemeProvider theme={theme}>
+        <Box
+          minHeight="100vh"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          bgcolor="background.default"
+        >
+          <Box textAlign="center">
+            <LinearProgress sx={{ width: 200, mb: 2 }} />
+            <Typography variant="h6" color="text.secondary">
+              Buscando...
+            </Typography>
+          </Box>
+        </Box>
+      </ThemeProvider>
     );
   }
 
   if (genresLoading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#1e293b",
-          color: "white",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        <div>Carregando gêneros...</div>
-      </div>
+      <ThemeProvider theme={theme}>
+        <Box
+          minHeight="100vh"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          bgcolor="background.default"
+        >
+          <Box textAlign="center">
+            <LinearProgress sx={{ width: 200, mb: 2 }} />
+            <Typography variant="h6" color="text.secondary">
+              Carregando gêneros...
+            </Typography>
+          </Box>
+        </Box>
+      </ThemeProvider>
     );
   }
 
   if (genresError) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#1e293b",
-          color: "white",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <h2>Erro ao carregar gêneros</h2>
-          <p>{genresError}</p>
-        </div>
-      </div>
+      <ThemeProvider theme={theme}>
+        <Box
+          minHeight="100vh"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          bgcolor="background.default"
+        >
+          <Alert severity="error" sx={{ maxWidth: 400 }}>
+            <Typography variant="h6" gutterBottom>
+              Erro ao carregar gêneros
+            </Typography>
+            <Typography>{genresError}</Typography>
+          </Alert>
+        </Box>
+      </ThemeProvider>
     );
   }
 
   if (error) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#1e293b",
-          color: "white",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <h2>Erro ao buscar recomendação</h2>
-          <p>{error}</p>
-        </div>
-      </div>
+      <ThemeProvider theme={theme}>
+        <Box
+          minHeight="100vh"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          bgcolor="background.default"
+        >
+          <Alert severity="error" sx={{ maxWidth: 400 }}>
+            <Typography variant="h6" gutterBottom>
+              Erro ao buscar recomendação
+            </Typography>
+            <Typography>{error}</Typography>
+          </Alert>
+        </Box>
+      </ThemeProvider>
     );
   }
 
   // View de recomendação de filme
   if (!showGenres && recommendation) {
     return (
-      <>
-        <div
-          style={{
-            minHeight: "100vh",
-            backgroundColor: "#1e293b",
-            color: "white",
-            fontFamily: "Arial, sans-serif",
-            padding: "20px",
-          }}
-        >
-          <div
-            style={{ maxWidth: "800px", margin: "0 auto", textAlign: "center" }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "30px",
-              }}
-            >
-              <h1 style={{ margin: 0 }}>Filme Recomendado</h1>
-              <button
-                onClick={handleOpenHistoryModal}
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: "#6b7280",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "5px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "bold",
-                }}
-              >
-                📚 Histórico
-              </button>
-            </div>
-
-            {recommendation.posterUrl && (
-              <img
-                src={recommendation.posterUrl}
-                alt={recommendation.title}
-                style={{
-                  maxWidth: "300px",
-                  borderRadius: "10px",
-                  marginBottom: "20px",
-                  boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
-                }}
-              />
-            )}
-
-            <h2 style={{ marginBottom: "15px", fontSize: "24px" }}>
-              {recommendation.title}
-            </h2>
-
-            {/* Seção de Gêneros */}
-            {recommendation.genres && recommendation.genres.length > 0 && (
-              <div style={{ marginBottom: "20px", textAlign: "left" }}>
-                <h4
-                  style={{
-                    color: "#94a3b8",
-                    marginBottom: "10px",
-                    fontSize: "16px",
-                  }}
+      <ThemeProvider theme={theme}>
+        <Box minHeight="100vh" bgcolor="background.default" sx={{ p: 2 }}>
+          <Container maxWidth="md">
+            <AppBar position="static" sx={{ mb: 3 }}>
+              <Toolbar>
+                <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
+                  <MovieIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+                  Filme Recomendado
+                </Typography>
+                <Button
+                  variant="outlined"
+                  color="inherit"
+                  onClick={handleOpenHistoryModal}
+                  startIcon={<HistoryIcon />}
                 >
-                  🏷️ Gêneros
-                </h4>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {recommendation.genres.map((genre, index) => (
-                    <span
-                      key={index}
-                      style={{
-                        backgroundColor: "#3b82f6",
-                        color: "white",
-                        padding: "4px 12px",
-                        borderRadius: "15px",
-                        fontSize: "12px",
-                        fontWeight: "500",
-                      }}
-                    >
-                      {genre}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+                  Histórico
+                </Button>
+              </Toolbar>
+            </AppBar>
 
-            <p
-              style={{
-                color: "#94a3b8",
-                lineHeight: "1.6",
-                marginBottom: "30px",
-                textAlign: "left",
-              }}
-            >
-              {recommendation.overview}
-            </p>
+            <Card sx={{ p: 3, textAlign: "center" }}>
+              {recommendation.posterUrl && (
+                <Box sx={{ mb: 3 }}>
+                  <img
+                    src={recommendation.posterUrl}
+                    alt={recommendation.title}
+                    style={{
+                      maxWidth: "300px",
+                      borderRadius: "16px",
+                      boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
+                    }}
+                  />
+                </Box>
+              )}
 
-            {/* Botão Ver Reviews */}
-            <div style={{ marginBottom: "30px", textAlign: "center" }}>
-              <button
-                onClick={handleGetReviews}
-                style={{
-                  padding: "12px 24px",
-                  backgroundColor: "#8b5cf6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "5px",
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  fontWeight: "bold",
-                  marginBottom: "20px",
-                }}
-              >
-                📝 Ver Reviews
-              </button>
+              <Typography variant="h3" gutterBottom>
+                {recommendation.title}
+              </Typography>
 
-              {/* Botão Adicionar/Remover da Lista de Assistidos */}
-              <div style={{ marginBottom: "20px" }}>
-                {isMovieWatched(recommendation.movieId) ? (
-                  <div>
-                    <button
-                      onClick={() =>
-                        handleRemoveFromWatched(recommendation.movieId)
-                      }
-                      style={{
-                        padding: "8px 16px",
-                        backgroundColor: "#ef4444",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "5px",
-                        cursor: "pointer",
-                        fontSize: "12px",
-                        fontWeight: "bold",
-                        marginBottom: "10px",
-                      }}
-                    >
-                      ❌ Remover dos Assistidos
-                    </button>
-
-                    {/* Estrelas para avaliação */}
-                    <div style={{ marginTop: "10px" }}>
-                      <p
-                        style={{
-                          color: "#94a3b8",
-                          fontSize: "14px",
-                          marginBottom: "5px",
+              {/* Seção de Gêneros */}
+              {recommendation.genres && recommendation.genres.length > 0 && (
+                <Box sx={{ mb: 3, textAlign: "left" }}>
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    🏷️ Gêneros
+                  </Typography>
+                  <Box display="flex" flexWrap="wrap" gap={1}>
+                    {recommendation.genres.map((genre, index) => (
+                      <Chip
+                        key={index}
+                        label={genre}
+                        color="primary"
+                        size="small"
+                        sx={{
+                          "&:hover": {
+                            transform: "scale(1.05)",
+                          },
                         }}
-                      >
-                        Como você avalia este filme?
-                      </p>
-                      <StarRating
-                        rating={
-                          watchedMovies.find(
-                            (m) => m.movieId === recommendation.movieId
-                          )?.rating || null
-                        }
-                        onRatingChange={(rating) =>
-                          handleUpdateRating(recommendation.movieId, rating)
-                        }
-                        movieId={recommendation.movieId}
                       />
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => handleAddToWatched(recommendation)}
-                    disabled={addingToWatchedLoading}
-                    style={{
-                      padding: "8px 16px",
-                      backgroundColor: addingToWatchedLoading
-                        ? "#6b7280"
-                        : "#10b981",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "5px",
-                      cursor: addingToWatchedLoading
-                        ? "not-allowed"
-                        : "pointer",
-                      fontSize: "12px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {addingToWatchedLoading
-                      ? "⏳ Adicionando..."
-                      : "✅ Marcar como Assistido"}
-                  </button>
-                )}
-              </div>
-            </div>
+                    ))}
+                  </Box>
+                </Box>
+              )}
 
-            {/* Seção de Vídeos */}
-            {recommendation.videos && recommendation.videos.length > 0 && (
-              <div style={{ marginBottom: "30px", textAlign: "left" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginBottom: "15px",
+              <Typography
+                variant="body1"
+                color="text.secondary"
+                sx={{ mb: 3, textAlign: "left", lineHeight: 1.6 }}
+              >
+                {recommendation.overview}
+              </Typography>
+
+              {/* Botão Ver Reviews */}
+              <Box sx={{ mb: 3, textAlign: "center" }}>
+                <Button
+                  variant="contained"
+                  color="secondary"
+                  size="large"
+                  onClick={handleGetReviews}
+                  startIcon={<StarIcon />}
+                  sx={{
+                    mb: 2,
+                    px: 3,
+                    py: 1.5,
+                    borderRadius: 2,
+                    textTransform: "none",
+                    fontSize: "1.1rem",
+                    "&:hover": {
+                      transform: "translateY(-2px)",
+                      boxShadow: 4,
+                    },
                   }}
                 >
-                  <h3 style={{ color: "#e2e8f0", margin: 0 }}>🎬 Trailer</h3>
-                  <button
-                    onClick={() => setShowVideo(!showVideo)}
-                    style={{
-                      padding: "6px 12px",
-                      backgroundColor: showVideo ? "#ef4444" : "#10b981",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "5px",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {showVideo ? "Ocultar Trailer" : "Ver Trailer"}
-                  </button>
-                </div>
+                  Ver Reviews
+                </Button>
 
-                {showVideo && (
-                  <div
-                    style={{
-                      position: "relative",
-                      paddingBottom: "56.25%",
-                      height: 0,
-                    }}
-                  >
-                    <iframe
-                      src={`https://www.youtube.com/embed/${recommendation.videos[0].key}`}
-                      title={recommendation.videos[0].name}
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        width: "100%",
-                        height: "100%",
-                        borderRadius: "10px",
+                {/* Botão Adicionar/Remover da Lista de Assistidos */}
+                <Box sx={{ mb: 2 }}>
+                  {isMovieWatched(recommendation.movieId) ? (
+                    <Box>
+                      <Button
+                        variant="contained"
+                        color="error"
+                        size="large"
+                        onClick={() =>
+                          handleRemoveFromWatched(recommendation.movieId)
+                        }
+                        disabled={
+                          removingFromWatchedLoading === recommendation.movieId
+                        }
+                        startIcon={
+                          removingFromWatchedLoading ===
+                          recommendation.movieId ? (
+                            <CircularProgress size={20} />
+                          ) : (
+                            <RemoveIcon />
+                          )
+                        }
+                        sx={{
+                          mb: 2,
+                          px: 3,
+                          py: 1.5,
+                          borderRadius: 2,
+                          textTransform: "none",
+                          fontSize: "1.1rem",
+                          "&:hover": {
+                            transform: "translateY(-2px)",
+                            boxShadow: 4,
+                          },
+                        }}
+                      >
+                        {removingFromWatchedLoading === recommendation.movieId
+                          ? "Removendo..."
+                          : "Remover dos Assistidos"}
+                      </Button>
+
+                      {/* Estrelas para avaliação - Centralizadas */}
+                      <Box
+                        sx={{
+                          mt: 3,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Typography
+                          variant="h6"
+                          color="text.secondary"
+                          gutterBottom
+                        >
+                          Como você avalia este filme?
+                        </Typography>
+                        <StarRating
+                          rating={
+                            watchedMovies.find(
+                              (m) => m.movieId === recommendation.movieId
+                            )?.rating || null
+                          }
+                          onRatingChange={(rating) =>
+                            handleUpdateRating(recommendation.movieId, rating)
+                          }
+                          movieId={recommendation.movieId}
+                        />
+                      </Box>
+                    </Box>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      color="success"
+                      size="large"
+                      onClick={() => handleAddToWatched(recommendation)}
+                      disabled={addingToWatchedLoading}
+                      startIcon={<AddIcon />}
+                      sx={{
+                        px: 3,
+                        py: 1.5,
+                        borderRadius: 2,
+                        textTransform: "none",
+                        fontSize: "1.1rem",
+                        "&:hover": {
+                          transform: "translateY(-2px)",
+                          boxShadow: 4,
+                        },
                       }}
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                )}
+                    >
+                      {addingToWatchedLoading
+                        ? "Adicionando..."
+                        : "Marcar como Assistido"}
+                    </Button>
+                  )}
+                </Box>
+              </Box>
 
-                {!showVideo && (
-                  <div
-                    style={{
-                      padding: "10px",
-                      backgroundColor: "#374151",
-                      borderRadius: "5px",
-                      color: "#9ca3af",
-                      fontSize: "14px",
-                    }}
+              {/* Seção de Vídeos */}
+              {recommendation.videos && recommendation.videos.length > 0 && (
+                <Box sx={{ mb: 3, textAlign: "left" }}>
+                  <Box
+                    display="flex"
+                    alignItems="center"
+                    gap={2}
+                    sx={{ mb: 2 }}
                   >
-                    💡 Clique em "Ver Trailer" para assistir ao trailer do filme
-                  </div>
-                )}
-              </div>
-            )}
+                    <Typography variant="h5" sx={{ m: 0 }}>
+                      🎬 Trailer
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      color={showVideo ? "error" : "success"}
+                      size="small"
+                      onClick={() => setShowVideo(!showVideo)}
+                      startIcon={showVideo ? <StopIcon /> : <PlayIcon />}
+                      sx={{
+                        borderRadius: 2,
+                        textTransform: "none",
+                        "&:hover": {
+                          transform: "translateY(-1px)",
+                          boxShadow: 2,
+                        },
+                      }}
+                    >
+                      {showVideo ? "Ocultar Trailer" : "Ver Trailer"}
+                    </Button>
+                  </Box>
 
-            {/* Seção de Provedores de Streaming */}
-            {recommendation.watchProviders && (
-              <div style={{ marginBottom: "30px", textAlign: "left" }}>
-                <h3 style={{ marginBottom: "15px", color: "#e2e8f0" }}>
-                  📺 Onde Assistir
-                </h3>
-
-                {/* Streaming (Flatrate) */}
-                {recommendation.watchProviders.flatrate &&
-                  recommendation.watchProviders.flatrate.length > 0 && (
-                    <div style={{ marginBottom: "20px" }}>
-                      <h4
+                  {showVideo && (
+                    <Box
+                      sx={{
+                        position: "relative",
+                        paddingBottom: "56.25%",
+                        height: 0,
+                      }}
+                    >
+                      <iframe
+                        src={`https://www.youtube.com/embed/${recommendation.videos[0].key}`}
+                        title={recommendation.videos[0].name}
                         style={{
-                          color: "#94a3b8",
-                          marginBottom: "10px",
-                          fontSize: "16px",
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          width: "100%",
+                          height: "100%",
+                          borderRadius: "16px",
                         }}
-                      >
-                        🟢 Streaming
-                      </h4>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: "10px",
-                        }}
-                      >
-                        {recommendation.watchProviders.flatrate.map(
-                          (provider, index) => (
-                            <div
-                              key={index}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                backgroundColor: "#475569",
-                                padding: "8px 12px",
-                                borderRadius: "20px",
-                                fontSize: "14px",
-                              }}
-                            >
-                              {provider.logo_path && (
-                                <img
-                                  src={provider.logo_path}
-                                  alt={provider.provider_name}
-                                  style={{
-                                    width: "20px",
-                                    height: "20px",
-                                    borderRadius: "4px",
-                                  }}
-                                />
-                              )}
-                              <span>{provider.provider_name}</span>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </div>
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </Box>
                   )}
 
-                {/* Aluguel (Rent) */}
-                {recommendation.watchProviders.rent &&
-                  recommendation.watchProviders.rent.length > 0 && (
-                    <div style={{ marginBottom: "20px" }}>
-                      <h4
-                        style={{
-                          color: "#94a3b8",
-                          marginBottom: "10px",
-                          fontSize: "16px",
-                        }}
-                      >
-                        🟡 Alugar
-                      </h4>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: "10px",
-                        }}
-                      >
-                        {recommendation.watchProviders.rent.map(
-                          (provider, index) => (
-                            <div
-                              key={index}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                backgroundColor: "#475569",
-                                padding: "8px 12px",
-                                borderRadius: "20px",
-                                fontSize: "14px",
-                              }}
-                            >
-                              {provider.logo_path && (
-                                <img
-                                  src={provider.logo_path}
-                                  alt={provider.provider_name}
-                                  style={{
-                                    width: "20px",
-                                    height: "20px",
-                                    borderRadius: "4px",
-                                  }}
-                                />
-                              )}
-                              <span>{provider.provider_name}</span>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </div>
+                  {!showVideo && (
+                    <Paper sx={{ p: 2, bgcolor: "rgba(51, 65, 85, 0.3)" }}>
+                      <Typography variant="body2" color="text.secondary">
+                        💡 Clique em "Ver Trailer" para assistir ao trailer do
+                        filme
+                      </Typography>
+                    </Paper>
                   )}
+                </Box>
+              )}
 
-                {/* Compra (Buy) */}
-                {recommendation.watchProviders.buy &&
-                  recommendation.watchProviders.buy.length > 0 && (
-                    <div style={{ marginBottom: "20px" }}>
-                      <h4
-                        style={{
-                          color: "#94a3b8",
-                          marginBottom: "10px",
-                          fontSize: "16px",
-                        }}
-                      >
-                        🔵 Comprar
-                      </h4>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: "10px",
-                        }}
-                      >
-                        {recommendation.watchProviders.buy.map(
-                          (provider, index) => (
-                            <div
-                              key={index}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                backgroundColor: "#475569",
-                                padding: "8px 12px",
-                                borderRadius: "20px",
-                                fontSize: "14px",
-                              }}
-                            >
-                              {provider.logo_path && (
-                                <img
-                                  src={provider.logo_path}
-                                  alt={provider.provider_name}
-                                  style={{
-                                    width: "20px",
-                                    height: "20px",
-                                    borderRadius: "4px",
-                                  }}
-                                />
-                              )}
-                              <span>{provider.provider_name}</span>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  )}
-              </div>
-            )}
+              {/* Seção de Provedores de Streaming */}
+              {recommendation.watchProviders && (
+                <Box sx={{ mb: 3, textAlign: "left" }}>
+                  <Typography variant="h5" gutterBottom>
+                    📺 Onde Assistir
+                  </Typography>
 
-            {/* Botão Nova Recomendação */}
-            <button
-              onClick={handleNewRecommendation}
-              style={{
-                padding: "12px 24px",
-                backgroundColor: "#3b82f6",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                cursor: "pointer",
-                fontSize: "16px",
-                fontWeight: "bold",
-              }}
-            >
-              Nova Recomendação
-            </button>
-          </div>
-        </div>
+                  {/* Streaming (Flatrate) */}
+                  {recommendation.watchProviders.flatrate &&
+                    recommendation.watchProviders.flatrate.length > 0 && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography
+                          variant="h6"
+                          color="text.secondary"
+                          gutterBottom
+                        >
+                          🟢 Streaming
+                        </Typography>
+                        <Box display="flex" flexWrap="wrap" gap={1}>
+                          {recommendation.watchProviders.flatrate.map(
+                            (provider, index) => (
+                              <Chip
+                                key={index}
+                                label={provider.provider_name}
+                                icon={
+                                  provider.logo_path ? (
+                                    <img
+                                      src={provider.logo_path}
+                                      alt={provider.provider_name}
+                                      style={{
+                                        width: "16px",
+                                        height: "16px",
+                                        borderRadius: "2px",
+                                      }}
+                                    />
+                                  ) : undefined
+                                }
+                                sx={{
+                                  backgroundColor: "rgba(34, 197, 94, 0.1)",
+                                  border: "1px solid rgba(34, 197, 94, 0.3)",
+                                  color: "#34d399",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(34, 197, 94, 0.2)",
+                                  },
+                                }}
+                              />
+                            )
+                          )}
+                        </Box>
+                      </Box>
+                    )}
+
+                  {/* Aluguel (Rent) */}
+                  {recommendation.watchProviders.rent &&
+                    recommendation.watchProviders.rent.length > 0 && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography
+                          variant="h6"
+                          color="text.secondary"
+                          gutterBottom
+                        >
+                          🟡 Alugar
+                        </Typography>
+                        <Box display="flex" flexWrap="wrap" gap={1}>
+                          {recommendation.watchProviders.rent.map(
+                            (provider, index) => (
+                              <Chip
+                                key={index}
+                                label={provider.provider_name}
+                                icon={
+                                  provider.logo_path ? (
+                                    <img
+                                      src={provider.logo_path}
+                                      alt={provider.provider_name}
+                                      style={{
+                                        width: "16px",
+                                        height: "16px",
+                                        borderRadius: "2px",
+                                      }}
+                                    />
+                                  ) : undefined
+                                }
+                                sx={{
+                                  backgroundColor: "rgba(251, 191, 36, 0.1)",
+                                  border: "1px solid rgba(251, 191, 36, 0.3)",
+                                  color: "#fbbf24",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(251, 191, 36, 0.2)",
+                                  },
+                                }}
+                              />
+                            )
+                          )}
+                        </Box>
+                      </Box>
+                    )}
+
+                  {/* Compra (Buy) */}
+                  {recommendation.watchProviders.buy &&
+                    recommendation.watchProviders.buy.length > 0 && (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography
+                          variant="h6"
+                          color="text.secondary"
+                          gutterBottom
+                        >
+                          🔵 Comprar
+                        </Typography>
+                        <Box display="flex" flexWrap="wrap" gap={1}>
+                          {recommendation.watchProviders.buy.map(
+                            (provider, index) => (
+                              <Chip
+                                key={index}
+                                label={provider.provider_name}
+                                icon={
+                                  provider.logo_path ? (
+                                    <img
+                                      src={provider.logo_path}
+                                      alt={provider.provider_name}
+                                      style={{
+                                        width: "16px",
+                                        height: "16px",
+                                        borderRadius: "2px",
+                                      }}
+                                    />
+                                  ) : undefined
+                                }
+                                sx={{
+                                  backgroundColor: "rgba(96, 165, 250, 0.1)",
+                                  border: "1px solid rgba(96, 165, 250, 0.3)",
+                                  color: "#60a5fa",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(96, 165, 250, 0.2)",
+                                  },
+                                }}
+                              />
+                            )
+                          )}
+                        </Box>
+                      </Box>
+                    )}
+                </Box>
+              )}
+
+              {/* Botão Nova Recomendação */}
+              <Box textAlign="center" sx={{ mt: 3 }}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  onClick={handleNewRecommendation}
+                  startIcon={<MovieIcon />}
+                  sx={{
+                    px: 4,
+                    py: 1.5,
+                    borderRadius: 2,
+                    textTransform: "none",
+                    fontSize: "1.1rem",
+                    "&:hover": {
+                      transform: "translateY(-2px)",
+                      boxShadow: 4,
+                    },
+                  }}
+                >
+                  Nova Recomendação
+                </Button>
+              </Box>
+            </Card>
+          </Container>
+        </Box>
 
         {/* Modal de Reviews como overlay */}
         {showReviewsModal && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(0, 0, 0, 0.8)",
+          <Modal
+            open={showReviewsModal}
+            onClose={handleCloseReviewsModal}
+            sx={{
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              zIndex: 1000,
-              padding: "20px",
+              p: 2,
+              backgroundColor: "rgba(0, 0, 0, 0.4)",
             }}
           >
-            <div
-              style={{
-                backgroundColor: "#1e293b",
-                borderRadius: "10px",
-                padding: "30px",
-                maxWidth: "600px",
+            <Paper
+              sx={{
+                maxWidth: 600,
                 width: "100%",
                 maxHeight: "80vh",
-                overflowY: "auto",
-                color: "white",
+                overflow: "auto",
                 position: "relative",
+                p: 3,
+                backgroundColor: "#1e293b",
+                border: "1px solid #334155",
               }}
             >
-              {/* Botão de fechar */}
-              <button
+              <IconButton
                 onClick={handleCloseReviewsModal}
-                style={{
+                sx={{
                   position: "absolute",
-                  top: "15px",
-                  right: "20px",
-                  backgroundColor: "transparent",
-                  border: "none",
-                  color: "#94a3b8",
-                  fontSize: "24px",
-                  cursor: "pointer",
-                  fontWeight: "bold",
+                  top: 8,
+                  right: 8,
                 }}
               >
-                ×
-              </button>
+                <CloseIcon />
+              </IconButton>
 
-              <h2 style={{ marginBottom: "20px", color: "#e2e8f0" }}>
+              <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
                 📝 Análise de Reviews
-              </h2>
+              </Typography>
 
               {reviewsLoading && (
-                <div style={{ textAlign: "center", padding: "40px" }}>
-                  <div style={{ color: "#94a3b8" }}>Analisando reviews...</div>
-                </div>
+                <Box textAlign="center" py={4}>
+                  <LinearProgress sx={{ width: 200, mx: "auto", mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary">
+                    Analisando reviews...
+                  </Typography>
+                </Box>
               )}
 
               {reviewsError && (
-                <div
-                  style={{
-                    backgroundColor: "#dc2626",
-                    color: "white",
-                    padding: "15px",
-                    borderRadius: "5px",
-                    marginBottom: "20px",
-                  }}
-                >
+                <Alert severity="error" sx={{ mb: 2 }}>
                   Erro: {reviewsError}
-                </div>
+                </Alert>
               )}
 
               {reviews && !reviewsLoading && (
-                <div>
+                <Box>
                   {/* Sentimento */}
-                  <div style={{ marginBottom: "20px" }}>
-                    <h3 style={{ color: "#e2e8f0", marginBottom: "10px" }}>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" gutterBottom>
                       Sentimento Geral
-                    </h3>
-                    <div
-                      style={{
-                        display: "inline-block",
-                        padding: "6px 12px",
-                        borderRadius: "15px",
-                        fontSize: "14px",
-                        fontWeight: "bold",
-                        backgroundColor:
-                          reviews.sentiment === "positivo"
-                            ? "#10b981"
-                            : reviews.sentiment === "negativo"
-                              ? "#ef4444"
-                              : reviews.sentiment === "misto"
-                                ? "#f59e0b"
-                                : "#6b7280",
-                      }}
-                    >
-                      {reviews.sentiment.charAt(0).toUpperCase() +
-                        reviews.sentiment.slice(1)}
-                    </div>
-                  </div>
+                    </Typography>
+                    <Chip
+                      label={
+                        reviews.sentiment.charAt(0).toUpperCase() +
+                        reviews.sentiment.slice(1)
+                      }
+                      color={
+                        reviews.sentiment === "positivo"
+                          ? "success"
+                          : reviews.sentiment === "negativo"
+                            ? "error"
+                            : reviews.sentiment === "misto"
+                              ? "warning"
+                              : "default"
+                      }
+                      variant="filled"
+                      sx={{ fontSize: "1rem", px: 2, py: 1 }}
+                    />
+                  </Box>
 
                   {/* Resumo */}
-                  <div style={{ marginBottom: "20px" }}>
-                    <h3 style={{ color: "#e2e8f0", marginBottom: "10px" }}>
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="h6" gutterBottom>
                       Resumo
-                    </h3>
-                    <p style={{ color: "#94a3b8", lineHeight: "1.6" }}>
+                    </Typography>
+                    <Typography
+                      variant="body1"
+                      color="text.secondary"
+                      sx={{ lineHeight: 1.6 }}
+                    >
                       {reviews.summary}
-                    </p>
-                  </div>
+                    </Typography>
+                  </Box>
 
                   {/* Pontos Principais */}
-                  <div>
-                    <h3 style={{ color: "#e2e8f0", marginBottom: "10px" }}>
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
                       Pontos Principais
-                    </h3>
-                    <ul style={{ color: "#94a3b8", paddingLeft: "20px" }}>
+                    </Typography>
+                    <List>
                       {reviews.keyPoints.map((point, index) => (
-                        <li
-                          key={index}
-                          style={{ marginBottom: "8px", lineHeight: "1.5" }}
-                        >
-                          {point}
-                        </li>
+                        <ListItem key={index} sx={{ px: 0 }}>
+                          <ListItemText
+                            primary={point}
+                            sx={{
+                              "& .MuiListItemText-primary": {
+                                color: "text.secondary",
+                                lineHeight: 1.5,
+                              },
+                            }}
+                          />
+                        </ListItem>
                       ))}
-                    </ul>
-                  </div>
-                </div>
+                    </List>
+                  </Box>
+                </Box>
               )}
-            </div>
-          </div>
+            </Paper>
+          </Modal>
         )}
-      </>
-    );
-  }
-
-  // Modal lateral de histórico
-  if (showHistoryModal) {
-    return (
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.8)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-end",
-          zIndex: 1000,
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: "#1e293b",
-            width: "400px",
-            height: "100vh",
-            overflowY: "auto",
-            color: "white",
-            position: "relative",
-            padding: "20px",
-          }}
-        >
-          {/* Botão de fechar */}
-          <button
-            onClick={handleCloseHistoryModal}
-            style={{
-              position: "absolute",
-              top: "15px",
-              right: "20px",
-              backgroundColor: "transparent",
-              border: "none",
-              color: "#94a3b8",
-              fontSize: "24px",
-              cursor: "pointer",
-              fontWeight: "bold",
-            }}
-          >
-            ×
-          </button>
-
-          <h2 style={{ marginBottom: "20px", color: "#e2e8f0" }}>
-            📚 Histórico de Filmes
-          </h2>
-
-          {historyLoading && (
-            <div style={{ textAlign: "center", padding: "40px" }}>
-              <div style={{ color: "#94a3b8" }}>Carregando histórico...</div>
-            </div>
-          )}
-
-          {historyError && (
-            <div
-              style={{
-                backgroundColor: "#dc2626",
-                color: "white",
-                padding: "15px",
-                borderRadius: "5px",
-                marginBottom: "20px",
-              }}
-            >
-              Erro: {historyError}
-            </div>
-          )}
-
-          {!historyLoading && !historyError && (
-            <div>
-              {/* Filmes Assistidos */}
-              <div style={{ marginBottom: "30px" }}>
-                <h3
-                  style={{
-                    color: "#e2e8f0",
-                    marginBottom: "15px",
-                    fontSize: "18px",
-                  }}
-                >
-                  ✅ Filmes Assistidos ({watchedMovies.length})
-                </h3>
-                {watchedMovies.length === 0 ? (
-                  <p style={{ color: "#94a3b8", fontSize: "14px" }}>
-                    Nenhum filme assistido ainda.
-                  </p>
-                ) : (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                    }}
-                  >
-                    {watchedMovies.map((movie) => (
-                      <div
-                        key={movie.id}
-                        style={{
-                          backgroundColor: "#374151",
-                          padding: "12px",
-                          borderRadius: "8px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                        }}
-                      >
-                        {movie.poster && (
-                          <img
-                            src={movie.poster}
-                            alt={movie.title}
-                            style={{
-                              width: "40px",
-                              height: "60px",
-                              borderRadius: "4px",
-                              objectFit: "cover",
-                            }}
-                          />
-                        )}
-                        <div style={{ flex: 1 }}>
-                          <h4
-                            style={{
-                              margin: 0,
-                              fontSize: "14px",
-                              color: "#e2e8f0",
-                            }}
-                          >
-                            {movie.title}
-                          </h4>
-                          {movie.genres && (
-                            <p
-                              style={{
-                                margin: "4px 0 0 0",
-                                fontSize: "12px",
-                                color: "#94a3b8",
-                              }}
-                            >
-                              {formatGenres(movie.genres)}
-                            </p>
-                          )}
-                          <div style={{ marginTop: "8px" }}>
-                            <StarRating
-                              rating={movie.rating}
-                              onRatingChange={(rating) =>
-                                handleUpdateRating(movie.movieId, rating)
-                              }
-                              movieId={movie.movieId}
-                            />
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveFromWatched(movie.movieId)}
-                          style={{
-                            padding: "4px 8px",
-                            backgroundColor: "#ef4444",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "10px",
-                          }}
-                        >
-                          ❌
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Filmes Recomendados */}
-              <div>
-                <h3
-                  style={{
-                    color: "#e2e8f0",
-                    marginBottom: "15px",
-                    fontSize: "18px",
-                  }}
-                >
-                  🎬 Filmes Recomendados ({recommendedMovies.length})
-                </h3>
-                {recommendedMovies.length === 0 ? (
-                  <p style={{ color: "#94a3b8", fontSize: "14px" }}>
-                    Nenhum filme recomendado ainda.
-                  </p>
-                ) : (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "10px",
-                    }}
-                  >
-                    {recommendedMovies.map((movie) => (
-                      <div
-                        key={movie.id}
-                        style={{
-                          backgroundColor: "#374151",
-                          padding: "12px",
-                          borderRadius: "8px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                        }}
-                      >
-                        {movie.poster && (
-                          <img
-                            src={movie.poster}
-                            alt={movie.title}
-                            style={{
-                              width: "40px",
-                              height: "60px",
-                              borderRadius: "4px",
-                              objectFit: "cover",
-                            }}
-                          />
-                        )}
-                        <div style={{ flex: 1 }}>
-                          <h4
-                            style={{
-                              margin: 0,
-                              fontSize: "14px",
-                              color: "#e2e8f0",
-                            }}
-                          >
-                            {movie.title}
-                          </h4>
-                          {movie.genres && (
-                            <p
-                              style={{
-                                margin: "4px 0 0 0",
-                                fontSize: "12px",
-                                color: "#94a3b8",
-                              }}
-                            >
-                              {formatGenres(movie.genres)}
-                            </p>
-                          )}
-                        </div>
-                        {isMovieWatched(movie.movieId) ? (
-                          <button
-                            onClick={() =>
-                              handleRemoveFromWatched(movie.movieId)
-                            }
-                            style={{
-                              padding: "4px 8px",
-                              backgroundColor: "#ef4444",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "10px",
-                            }}
-                          >
-                            ❌
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleAddToWatched(movie)}
-                            style={{
-                              padding: "4px 8px",
-                              backgroundColor: "#10b981",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "10px",
-                            }}
-                          >
-                            ✅
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      </ThemeProvider>
     );
   }
 
   // Modal de sugestão de gêneros
   if (showSuggestionModal) {
     return (
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.8)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1000,
-          padding: "20px",
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: "#1e293b",
-            borderRadius: "10px",
-            padding: "30px",
-            maxWidth: "600px",
-            width: "100%",
-            maxHeight: "80vh",
-            overflowY: "auto",
-            color: "white",
-            position: "relative",
+      <ThemeProvider theme={theme}>
+        <Modal
+          open={showSuggestionModal}
+          onClose={handleCloseSuggestionModal}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            p: 2,
+            backgroundColor: "rgba(0, 0, 0, 0.4)",
           }}
         >
-          {/* Botão de fechar */}
-          <button
-            onClick={handleCloseSuggestionModal}
-            style={{
-              position: "absolute",
-              top: "15px",
-              right: "20px",
-              backgroundColor: "transparent",
-              border: "none",
-              color: "#94a3b8",
-              fontSize: "24px",
-              cursor: "pointer",
-              fontWeight: "bold",
+          <Paper
+            sx={{
+              maxWidth: 600,
+              width: "100%",
+              maxHeight: "80vh",
+              overflow: "auto",
+              position: "relative",
+              p: 3,
+              backgroundColor: "#1e293b",
+              border: "1px solid #334155",
             }}
           >
-            ×
-          </button>
-
-          <h2 style={{ marginBottom: "20px", color: "#e2e8f0" }}>
-            🎯 Sugestão de Gêneros
-          </h2>
-
-          {!genreSuggestion && !suggestionLoading && (
-            <div style={{ textAlign: "center" }}>
-              <p
-                style={{
-                  color: "#94a3b8",
-                  marginBottom: "20px",
-                  fontSize: "16px",
-                }}
-              >
-                Escolha o tipo de experiência que você quer:
-              </p>
-
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "20px",
-                  marginBottom: "30px",
-                }}
-              >
-                <div
-                  style={{
-                    backgroundColor: "#374151",
-                    padding: "20px",
-                    borderRadius: "10px",
-                    border: "2px solid #10b981",
-                  }}
-                >
-                  <h3
-                    style={{
-                      color: "#10b981",
-                      marginBottom: "10px",
-                      fontSize: "18px",
-                    }}
-                  >
-                    🏠 Zona de Conforto
-                  </h3>
-                  <p
-                    style={{
-                      color: "#94a3b8",
-                      fontSize: "14px",
-                      lineHeight: "1.5",
-                      marginBottom: "15px",
-                    }}
-                  >
-                    Analisamos seus filmes assistidos e sugerimos gêneros
-                    similares aos que você mais gosta. Ideal para quando você
-                    quer algo familiar e confiável.
-                  </p>
-                  <button
-                    onClick={() => handleGetGenreSuggestion("comfort")}
-                    style={{
-                      padding: "12px 24px",
-                      backgroundColor: "#10b981",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      fontWeight: "bold",
-                      width: "100%",
-                    }}
-                  >
-                    🏠 Escolher Zona de Conforto
-                  </button>
-                </div>
-
-                <div
-                  style={{
-                    backgroundColor: "#374151",
-                    padding: "20px",
-                    borderRadius: "10px",
-                    border: "2px solid #8b5cf6",
-                  }}
-                >
-                  <h3
-                    style={{
-                      color: "#8b5cf6",
-                      marginBottom: "10px",
-                      fontSize: "18px",
-                    }}
-                  >
-                    🌟 Experiência Nova
-                  </h3>
-                  <p
-                    style={{
-                      color: "#94a3b8",
-                      fontSize: "14px",
-                      lineHeight: "1.5",
-                      marginBottom: "15px",
-                    }}
-                  >
-                    Descubra gêneros diferentes dos que você costuma assistir.
-                    Perfeito para expandir seus horizontes cinematográficos e
-                    encontrar novas paixões.
-                  </p>
-                  <button
-                    onClick={() => handleGetGenreSuggestion("new")}
-                    style={{
-                      padding: "12px 24px",
-                      backgroundColor: "#8b5cf6",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                      fontSize: "14px",
-                      fontWeight: "bold",
-                      width: "100%",
-                    }}
-                  >
-                    🌟 Escolher Experiência Nova
-                  </button>
-                </div>
-              </div>
-
-              <div
-                style={{
-                  backgroundColor: "#1f2937",
-                  padding: "15px",
-                  borderRadius: "8px",
-                  border: "1px solid #374151",
-                }}
-              >
-                <p
-                  style={{
-                    color: "#94a3b8",
-                    fontSize: "13px",
-                    margin: 0,
-                    textAlign: "left",
-                  }}
-                >
-                  <strong>💡 Dica:</strong> Nossa IA analisa todos os filmes que
-                  você marcou como "assistidos" para entender suas preferências
-                  e fazer sugestões personalizadas.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {suggestionLoading && (
-            <div style={{ textAlign: "center", padding: "40px" }}>
-              <div style={{ color: "#94a3b8" }}>
-                Analisando seus filmes assistidos...
-              </div>
-            </div>
-          )}
-
-          {suggestionError && (
-            <div
-              style={{
-                backgroundColor: "#dc2626",
-                color: "white",
-                padding: "15px",
-                borderRadius: "5px",
-                marginBottom: "20px",
+            <IconButton
+              onClick={handleCloseSuggestionModal}
+              sx={{
+                position: "absolute",
+                top: 8,
+                right: 8,
               }}
             >
-              Erro: {suggestionError}
-            </div>
-          )}
+              <CloseIcon />
+            </IconButton>
 
-          {genreSuggestion && !suggestionLoading && (
-            <div>
-              {/* Análise */}
-              <div style={{ marginBottom: "25px" }}>
-                <h3 style={{ color: "#e2e8f0", marginBottom: "10px" }}>
-                  📊 Análise
-                </h3>
-                <p style={{ color: "#94a3b8", lineHeight: "1.6" }}>
-                  {genreSuggestion.analysis}
-                </p>
-              </div>
+            <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
+              <AutoAwesomeIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+              Sugestão de Gêneros
+            </Typography>
 
-              {/* Gêneros Sugeridos */}
-              <div style={{ marginBottom: "25px" }}>
-                <h3 style={{ color: "#e2e8f0", marginBottom: "15px" }}>
-                  🎬 Gêneros Sugeridos
-                </h3>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "10px",
-                  }}
+            {!genreSuggestion && !suggestionLoading && (
+              <Box textAlign="center">
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  Escolha o tipo de experiência que você quer:
+                </Typography>
+
+                <Box
+                  display="flex"
+                  flexDirection={{ xs: "column", md: "row" }}
+                  gap={2}
+                  sx={{ mt: 2 }}
                 >
-                  {genreSuggestion.suggestedGenres.map((genre, index) => (
-                    <div
-                      key={index}
-                      style={{
-                        backgroundColor: "#374151",
-                        padding: "15px",
-                        borderRadius: "8px",
+                  <Box flex={1} sx={{ display: "flex" }}>
+                    <Card
+                      sx={{
+                        p: 3,
+                        textAlign: "center",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
                         display: "flex",
-                        alignItems: "center",
-                        gap: "15px",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        minHeight: 200,
+                        width: "100%",
+                        "&:hover": {
+                          transform: "translateY(-4px)",
+                          boxShadow: 4,
+                        },
                       }}
+                      onClick={() => handleGetGenreSuggestion("comfort")}
                     >
-                      <div
-                        style={{
-                          backgroundColor: "#3b82f6",
-                          color: "white",
-                          width: "30px",
-                          height: "30px",
-                          borderRadius: "50%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "14px",
-                          fontWeight: "bold",
-                        }}
-                      >
-                        {index + 1}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <h4
-                          style={{
-                            margin: 0,
-                            fontSize: "16px",
-                            color: "#e2e8f0",
-                          }}
-                        >
-                          {genre.name}
-                        </h4>
-                        <p
-                          style={{
-                            margin: "4px 0 0 0",
-                            fontSize: "14px",
-                            color: "#94a3b8",
-                          }}
-                        >
-                          {genre.reason}
-                        </p>
-                      </div>
-                    </div>
+                      <Box>
+                        <HomeIcon
+                          sx={{ fontSize: 48, color: "success.main", mb: 2 }}
+                        />
+                        <Typography variant="h6" gutterBottom>
+                          Zona de Conforto
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Analisamos seus filmes assistidos e sugerimos gêneros
+                          similares aos que você mais gosta. Ideal para quando
+                          você quer algo familiar e confiável.
+                        </Typography>
+                      </Box>
+                    </Card>
+                  </Box>
+
+                  <Box flex={1} sx={{ display: "flex" }}>
+                    <Card
+                      sx={{
+                        p: 3,
+                        textAlign: "center",
+                        cursor: "pointer",
+                        transition: "all 0.3s ease",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "space-between",
+                        minHeight: 200,
+                        width: "100%",
+                        "&:hover": {
+                          transform: "translateY(-4px)",
+                          boxShadow: 4,
+                        },
+                      }}
+                      onClick={() => handleGetGenreSuggestion("new")}
+                    >
+                      <Box>
+                        <ExploreIcon
+                          sx={{ fontSize: 48, color: "secondary.main", mb: 2 }}
+                        />
+                        <Typography variant="h6" gutterBottom>
+                          Experiência Nova
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Descubra gêneros diferentes dos que você costuma
+                          assistir. Perfeito para expandir seus horizontes
+                          cinematográficos e encontrar novas paixões.
+                        </Typography>
+                      </Box>
+                    </Card>
+                  </Box>
+                </Box>
+
+                <Paper sx={{ p: 2, mt: 3, bgcolor: "rgba(51, 65, 85, 0.3)" }}>
+                  <Typography variant="body2" color="text.secondary">
+                    <PsychologyIcon
+                      sx={{ mr: 1, verticalAlign: "middle", fontSize: 16 }}
+                    />
+                    <strong>Dica:</strong> Nossa IA analisa todos os filmes que
+                    você marcou como "assistidos" para entender suas
+                    preferências e fazer sugestões personalizadas.
+                  </Typography>
+                </Paper>
+              </Box>
+            )}
+
+            {suggestionLoading && (
+              <Box textAlign="center" py={4}>
+                <LinearProgress sx={{ width: 200, mx: "auto", mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">
+                  Analisando seus filmes assistidos...
+                </Typography>
+              </Box>
+            )}
+
+            {suggestionError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                Erro: {suggestionError}
+              </Alert>
+            )}
+
+            {genreSuggestion && !suggestionLoading && (
+              <Box>
+                <Typography variant="h5" gutterBottom>
+                  📊 Análise
+                </Typography>
+                <Typography variant="body1" color="text.secondary" paragraph>
+                  {genreSuggestion.analysis}
+                </Typography>
+
+                <Typography variant="h5" gutterBottom>
+                  🎬 Gêneros Sugeridos
+                </Typography>
+                <Box display="flex" flexDirection="column" gap={2}>
+                  {genreSuggestion.suggestedGenres.map((genre, index) => (
+                    <Card key={index} sx={{ p: 2 }}>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Avatar sx={{ bgcolor: "primary.main" }}>
+                          {index + 1}
+                        </Avatar>
+                        <Box flex={1}>
+                          <Typography variant="h6">{genre.name}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {genre.reason}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Card>
                   ))}
-                </div>
-              </div>
+                </Box>
 
-              {/* Botões de Ação */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: "15px",
-                  justifyContent: "center",
-                }}
-              >
-                <button
-                  onClick={() =>
-                    handleUseSuggestedGenres(genreSuggestion.suggestedGenres)
-                  }
-                  style={{
-                    padding: "12px 24px",
-                    backgroundColor: "#10b981",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "5px",
-                    cursor: "pointer",
-                    fontSize: "16px",
-                    fontWeight: "bold",
-                  }}
+                <Box
+                  display="flex"
+                  gap={2}
+                  justifyContent="center"
+                  sx={{ mt: 3 }}
                 >
-                  ✅ Usar Estes Gêneros
-                </button>
+                  <Button
+                    variant="contained"
+                    color="success"
+                    size="large"
+                    onClick={() =>
+                      handleUseSuggestedGenres(genreSuggestion.suggestedGenres)
+                    }
+                    startIcon={<AutoAwesomeIcon />}
+                  >
+                    Usar Estes Gêneros
+                  </Button>
 
-                <button
-                  onClick={handleCloseSuggestionModal}
-                  style={{
-                    padding: "12px 24px",
-                    backgroundColor: "#6b7280",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "5px",
-                    cursor: "pointer",
-                    fontSize: "16px",
-                    fontWeight: "bold",
-                  }}
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+                  <Button
+                    variant="outlined"
+                    onClick={handleCloseSuggestionModal}
+                  >
+                    Cancelar
+                  </Button>
+                </Box>
+              </Box>
+            )}
+          </Paper>
+        </Modal>
+      </ThemeProvider>
     );
   }
 
   // View de seleção de gêneros
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "#1e293b",
-        color: "white",
-        fontFamily: "Arial, sans-serif",
-        padding: "20px",
-      }}
-    >
-      <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "30px",
-          }}
-        >
-          <h1 style={{ margin: 0 }}>Which Movie?</h1>
-          <button
-            onClick={handleOpenHistoryModal}
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "#6b7280",
-              color: "white",
-              border: "none",
-              borderRadius: "5px",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: "bold",
-            }}
-          >
-            📚 Histórico
-          </button>
-        </div>
+    <ThemeProvider theme={theme}>
+      <Box minHeight="100vh" bgcolor="background.default" sx={{ p: 2 }}>
+        <Container maxWidth="md">
+          <AppBar position="static" sx={{ mb: 3 }}>
+            <Toolbar>
+              <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>
+                <MovieIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+                Which Movie?
+              </Typography>
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={handleOpenHistoryModal}
+                startIcon={<HistoryIcon />}
+              >
+                Histórico
+              </Button>
+            </Toolbar>
+          </AppBar>
 
-        <div style={{ marginBottom: "30px" }}>
-          <h2>Gêneros que você quer (máximo 3):</h2>
-          <p style={{ color: "#94a3b8", marginBottom: "15px" }}>
-            Selecione até 3 gêneros que você gostaria de ver em um filme
-            recomendado
-          </p>
+          <Card sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              Gêneros que você quer (máximo 3):
+            </Typography>
+            <Typography variant="body1" color="text.secondary" paragraph>
+              Selecione até 3 gêneros que você gostaria de ver em um filme
+              recomendado
+            </Typography>
 
-          {/* Botão de Sugestão */}
-          <div style={{ marginBottom: "20px", textAlign: "center" }}>
-            <button
-              onClick={handleOpenSuggestionModal}
-              style={{
-                padding: "10px 20px",
-                backgroundColor: "#f59e0b",
-                color: "white",
-                border: "none",
-                borderRadius: "5px",
-                cursor: "pointer",
-                fontSize: "14px",
-                fontWeight: "bold",
-              }}
-            >
-              🎯 Sugerir Gêneros
-            </button>
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-            {genres.map((genre) => (
-              <button
-                key={genre.id}
-                onClick={() => handleIncludeGenre(genre.id)}
-                disabled={
-                  selectedGenres.length >= 3 &&
-                  !selectedGenres.includes(genre.id)
-                }
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: selectedGenres.includes(genre.id)
-                    ? "#3b82f6"
-                    : "#475569",
+            {/* Botão de Sugestão */}
+            <Box textAlign="center" mb={3}>
+              <Button
+                variant="contained"
+                onClick={handleOpenSuggestionModal}
+                startIcon={<AutoAwesomeIcon />}
+                sx={{
+                  px: 2.5,
+                  py: 1.2,
+                  borderRadius: 2,
+                  textTransform: "none",
+                  fontSize: "1rem",
+                  backgroundColor: "#8b5cf6", // Violet-500
                   color: "white",
-                  border: "none",
-                  borderRadius: "20px",
-                  cursor:
-                    selectedGenres.includes(genre.id) ||
-                    selectedGenres.length < 3
-                      ? "pointer"
-                      : "not-allowed",
-                  opacity:
+                  "&:hover": {
+                    backgroundColor: "#7c3aed", // Violet-600
+                    transform: "translateY(-1px)",
+                    boxShadow: 3,
+                  },
+                  "&:active": {
+                    backgroundColor: "#6d28d9", // Violet-700
+                    transform: "translateY(0)",
+                  },
+                }}
+              >
+                Sugerir Gêneros
+              </Button>
+            </Box>
+
+            <Box display="flex" flexWrap="wrap" gap={1}>
+              {genres.map((genre) => (
+                <Chip
+                  key={genre.id}
+                  label={genre.name}
+                  onClick={() => handleIncludeGenre(genre.id)}
+                  disabled={
                     selectedGenres.length >= 3 &&
                     !selectedGenres.includes(genre.id)
-                      ? 0.5
-                      : 1,
-                  fontSize: "14px",
-                }}
-              >
-                {genre.name}
-              </button>
-            ))}
-          </div>
-          <p style={{ color: "#94a3b8", fontSize: "14px", marginTop: "10px" }}>
-            Selecionados: {selectedGenres.length}/3
-          </p>
-        </div>
+                  }
+                  color={
+                    selectedGenres.includes(genre.id) ? "primary" : "default"
+                  }
+                  variant={
+                    selectedGenres.includes(genre.id) ? "filled" : "outlined"
+                  }
+                  sx={{
+                    cursor:
+                      selectedGenres.includes(genre.id) ||
+                      selectedGenres.length < 3
+                        ? "pointer"
+                        : "not-allowed",
+                    opacity:
+                      selectedGenres.length >= 3 &&
+                      !selectedGenres.includes(genre.id)
+                        ? 0.5
+                        : 1,
+                    "&:hover": {
+                      transform: "scale(1.05)",
+                    },
+                  }}
+                />
+              ))}
+            </Box>
 
-        <div style={{ marginBottom: "30px" }}>
-          <h2>Gêneros que você NÃO quer (opcional):</h2>
-          <p style={{ color: "#94a3b8", marginBottom: "15px" }}>
-            Selecione gêneros que você prefere evitar
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-            {genres.map((genre) => (
-              <button
-                key={genre.id}
-                onClick={() => handleExcludeGenre(genre.id)}
-                disabled={isGenreDisabled(genre.id)}
-                style={{
-                  padding: "8px 16px",
-                  backgroundColor: excludedGenres.includes(genre.id)
-                    ? "#ef4444"
-                    : "#475569",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "20px",
-                  cursor: isGenreDisabled(genre.id) ? "not-allowed" : "pointer",
-                  opacity: isGenreDisabled(genre.id) ? 0.5 : 1,
-                  fontSize: "14px",
-                }}
-              >
-                {genre.name}
-              </button>
-            ))}
-          </div>
-          <p style={{ color: "#94a3b8", fontSize: "14px", marginTop: "10px" }}>
-            Excluídos: {excludedGenres.length}
-          </p>
-        </div>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              {selectedGenres.length}/3 gêneros selecionados
+            </Typography>
+          </Card>
 
-        {error && (
-          <div
-            style={{
-              color: "#ef4444",
-              backgroundColor: "#7f1d1d",
-              padding: "10px",
-              borderRadius: "5px",
-              marginBottom: "20px",
-              textAlign: "center",
+          <Card sx={{ p: 3, mb: 3 }}>
+            <Typography variant="h5" gutterBottom>
+              Gêneros que você NÃO quer (opcional):
+            </Typography>
+            <Typography variant="body1" color="text.secondary" paragraph>
+              Selecione gêneros que você prefere evitar
+            </Typography>
+            <Box display="flex" flexWrap="wrap" gap={1}>
+              {genres.map((genre) => (
+                <Chip
+                  key={genre.id}
+                  label={genre.name}
+                  onClick={() => handleExcludeGenre(genre.id)}
+                  disabled={isGenreDisabled(genre.id)}
+                  color={
+                    excludedGenres.includes(genre.id) ? "error" : "default"
+                  }
+                  variant={
+                    excludedGenres.includes(genre.id) ? "filled" : "outlined"
+                  }
+                  sx={{
+                    cursor: isGenreDisabled(genre.id)
+                      ? "not-allowed"
+                      : "pointer",
+                    opacity: isGenreDisabled(genre.id) ? 0.5 : 1,
+                    "&:hover": {
+                      transform: "scale(1.05)",
+                    },
+                  }}
+                />
+              ))}
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              {excludedGenres.length} gêneros excluídos
+            </Typography>
+          </Card>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Erro ao buscar recomendação: {error}
+            </Alert>
+          )}
+
+          <Box textAlign="center">
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleGetRecommendation}
+              disabled={selectedGenres.length === 0 || loading}
+              startIcon={<MovieIcon />}
+              sx={{
+                px: 4,
+                py: 1.5,
+                borderRadius: 2,
+                textTransform: "none",
+                fontSize: "1.1rem",
+                "&:hover": {
+                  transform: "translateY(-2px)",
+                  boxShadow: 4,
+                },
+              }}
+            >
+              {loading ? "Buscando..." : "Buscar Recomendação"}
+            </Button>
+          </Box>
+        </Container>
+      </Box>
+
+      {/* Modal de Histórico */}
+      {showHistoryModal && (
+        <Modal
+          open={showHistoryModal}
+          onClose={handleCloseHistoryModal}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            backgroundColor: "rgba(0, 0, 0, 0.4)",
+          }}
+        >
+          <Paper
+            sx={{
+              width: 400,
+              height: "100vh",
+              overflow: "auto",
+              position: "relative",
+              p: 3,
+              borderRadius: 0,
+              backgroundColor: "#1e293b",
+              border: "1px solid #334155",
             }}
           >
-            Erro ao buscar recomendação: {error}
-          </div>
-        )}
+            <IconButton
+              onClick={handleCloseHistoryModal}
+              sx={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
 
-        <div style={{ textAlign: "center" }}>
-          <button
-            onClick={handleGetRecommendation}
-            disabled={selectedGenres.length === 0 || loading}
-            style={{
-              padding: "12px 24px",
-              backgroundColor:
-                selectedGenres.length > 0 && !loading ? "#3b82f6" : "#475569",
-              color: "white",
-              border: "none",
-              borderRadius: "5px",
-              cursor:
-                selectedGenres.length > 0 && !loading
-                  ? "pointer"
-                  : "not-allowed",
-              fontSize: "16px",
-              fontWeight: "bold",
-            }}
-          >
-            {loading ? "Buscando..." : "Buscar Recomendação"}
-          </button>
-        </div>
-      </div>
-    </div>
+            <Typography variant="h4" gutterBottom sx={{ mb: 3 }}>
+              <LibraryBooksIcon sx={{ mr: 1, verticalAlign: "middle" }} />
+              Histórico de Filmes
+            </Typography>
+
+            {/* Abas de Navegação */}
+            <Box sx={{ mb: 3 }}>
+              <Box
+                display="flex"
+                gap={1}
+                sx={{ borderBottom: 1, borderColor: "divider" }}
+              >
+                <Button
+                  variant={historyView === "watched" ? "contained" : "text"}
+                  onClick={() => setHistoryView("watched")}
+                  startIcon={<VisibilityIcon />}
+                  sx={{
+                    borderRadius: 0,
+                    borderBottom: historyView === "watched" ? 2 : 0,
+                    borderColor: "primary.main",
+                    textTransform: "none",
+                    fontWeight: historyView === "watched" ? 600 : 400,
+                  }}
+                >
+                  Assistidos ({watchedMovies.length})
+                </Button>
+                <Button
+                  variant={historyView === "recommended" ? "contained" : "text"}
+                  onClick={() => setHistoryView("recommended")}
+                  startIcon={<RecommendIcon />}
+                  sx={{
+                    borderRadius: 0,
+                    borderBottom: historyView === "recommended" ? 2 : 0,
+                    borderColor: "primary.main",
+                    textTransform: "none",
+                    fontWeight: historyView === "recommended" ? 600 : 400,
+                  }}
+                >
+                  Recomendados ({recommendedMovies.length})
+                </Button>
+              </Box>
+            </Box>
+
+            {historyLoading && (
+              <Box textAlign="center" py={4}>
+                <LinearProgress sx={{ width: 200, mx: "auto", mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">
+                  Carregando histórico...
+                </Typography>
+              </Box>
+            )}
+
+            {historyError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                Erro: {historyError}
+              </Alert>
+            )}
+
+            {!historyLoading && !historyError && (
+              <Box>
+                {historyView === "watched" ? (
+                  /* Filmes Assistidos */
+                  <Box>
+                    {watchedMovies.length === 0 ? (
+                      <Box textAlign="center" py={4}>
+                        <VisibilityIcon
+                          sx={{ fontSize: 48, color: "text.secondary", mb: 2 }}
+                        />
+                        <Typography
+                          variant="h6"
+                          color="text.secondary"
+                          gutterBottom
+                        >
+                          Nenhum filme assistido ainda
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Os filmes que você marcar como assistidos aparecerão
+                          aqui
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <List>
+                        {watchedMovies.map((movie) => (
+                          <ListItem
+                            key={movie.id}
+                            sx={{
+                              bgcolor: "rgba(51, 65, 85, 0.3)",
+                              mb: 1,
+                              borderRadius: 1,
+                              position: "relative",
+                              border: "1px solid rgba(51, 65, 85, 0.5)",
+                              p: 2,
+                            }}
+                          >
+                            {/* Ícone de ação no canto superior direito */}
+                            <IconButton
+                              onClick={() =>
+                                handleRemoveFromWatched(movie.movieId)
+                              }
+                              disabled={
+                                removingFromWatchedLoading === movie.movieId
+                              }
+                              size="small"
+                              sx={{
+                                position: "absolute",
+                                top: 8,
+                                right: 8,
+                                color: "error.main",
+                                backgroundColor: "rgba(239, 68, 68, 0.1)",
+                                "&:hover": {
+                                  backgroundColor: "rgba(239, 68, 68, 0.2)",
+                                },
+                                zIndex: 1,
+                              }}
+                            >
+                              {removingFromWatchedLoading === movie.movieId ? (
+                                <CircularProgress size={16} />
+                              ) : (
+                                <CancelIcon fontSize="small" />
+                              )}
+                            </IconButton>
+
+                            {/* Conteúdo do card */}
+                            <Box display="flex" gap={2} sx={{ width: "100%" }}>
+                              {movie.poster && (
+                                <img
+                                  src={movie.poster}
+                                  alt={movie.title}
+                                  style={{
+                                    width: "50px",
+                                    height: "75px",
+                                    borderRadius: "8px",
+                                    objectFit: "cover",
+                                    flexShrink: 0,
+                                  }}
+                                />
+                              )}
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography
+                                  variant="subtitle1"
+                                  sx={{
+                                    mb: 0.5,
+                                    fontWeight: 600,
+                                    lineHeight: 1.2,
+                                  }}
+                                >
+                                  {movie.title}
+                                </Typography>
+                                {renderGenres(movie.genres)}
+                                <Box sx={{ mt: 1 }}>
+                                  <StarRating
+                                    rating={movie.rating}
+                                    onRatingChange={(rating) =>
+                                      handleUpdateRating(movie.movieId, rating)
+                                    }
+                                    movieId={movie.movieId}
+                                  />
+                                </Box>
+                              </Box>
+                            </Box>
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                  </Box>
+                ) : (
+                  /* Filmes Recomendados */
+                  <Box>
+                    {recommendedMovies.length === 0 ? (
+                      <Box textAlign="center" py={4}>
+                        <RecommendIcon
+                          sx={{ fontSize: 48, color: "text.secondary", mb: 2 }}
+                        />
+                        <Typography
+                          variant="h6"
+                          color="text.secondary"
+                          gutterBottom
+                        >
+                          Nenhum filme recomendado ainda
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          As recomendações que você receber aparecerão aqui
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <List>
+                        {recommendedMovies.map((movie) => (
+                          <ListItem
+                            key={movie.id}
+                            sx={{
+                              bgcolor: "rgba(51, 65, 85, 0.3)",
+                              mb: 1,
+                              borderRadius: 1,
+                              position: "relative",
+                              border: "1px solid rgba(51, 65, 85, 0.5)",
+                              p: 2,
+                            }}
+                          >
+                            {/* Ícone de ação no canto superior direito */}
+                            {isMovieWatched(movie.movieId) ? (
+                              <IconButton
+                                onClick={() =>
+                                  handleRemoveFromWatched(movie.movieId)
+                                }
+                                disabled={
+                                  removingFromWatchedLoading === movie.movieId
+                                }
+                                size="small"
+                                sx={{
+                                  position: "absolute",
+                                  top: 8,
+                                  right: 8,
+                                  color: "error.main",
+                                  backgroundColor: "rgba(239, 68, 68, 0.1)",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(239, 68, 68, 0.2)",
+                                  },
+                                  zIndex: 1,
+                                }}
+                              >
+                                {removingFromWatchedLoading ===
+                                movie.movieId ? (
+                                  <CircularProgress size={16} />
+                                ) : (
+                                  <CancelIcon fontSize="small" />
+                                )}
+                              </IconButton>
+                            ) : (
+                              <IconButton
+                                onClick={() => handleAddToWatched(movie)}
+                                disabled={addingToWatchedLoading}
+                                size="small"
+                                sx={{
+                                  position: "absolute",
+                                  top: 8,
+                                  right: 8,
+                                  color: "success.main",
+                                  backgroundColor: "rgba(34, 197, 94, 0.1)",
+                                  "&:hover": {
+                                    backgroundColor: "rgba(34, 197, 94, 0.2)",
+                                  },
+                                  zIndex: 1,
+                                }}
+                              >
+                                {addingToWatchedLoading ? (
+                                  <CircularProgress size={16} />
+                                ) : (
+                                  <CheckCircleIcon fontSize="small" />
+                                )}
+                              </IconButton>
+                            )}
+
+                            {/* Conteúdo do card */}
+                            <Box display="flex" gap={2} sx={{ width: "100%" }}>
+                              {movie.poster && (
+                                <img
+                                  src={movie.poster}
+                                  alt={movie.title}
+                                  style={{
+                                    width: "50px",
+                                    height: "75px",
+                                    borderRadius: "8px",
+                                    objectFit: "cover",
+                                    flexShrink: 0,
+                                  }}
+                                />
+                              )}
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography
+                                  variant="subtitle1"
+                                  sx={{
+                                    mb: 0.5,
+                                    fontWeight: 600,
+                                    lineHeight: 1.2,
+                                  }}
+                                >
+                                  {movie.title}
+                                </Typography>
+                                {renderGenres(movie.genres)}
+                              </Box>
+                            </Box>
+                          </ListItem>
+                        ))}
+                      </List>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            )}
+          </Paper>
+        </Modal>
+      )}
+    </ThemeProvider>
   );
 }
 
