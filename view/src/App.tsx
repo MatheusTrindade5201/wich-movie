@@ -43,11 +43,6 @@ import {
   Home as HomeIcon,
   Psychology as PsychologyIcon,
   Explore as ExploreIcon,
-  Visibility as VisibilityIcon,
-  Recommend as RecommendIcon,
-  CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
-  LibraryBooks as LibraryBooksIcon,
 } from "@mui/icons-material";
 import HistoryModal from "./components/HistoryModal";
 
