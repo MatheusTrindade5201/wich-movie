@@ -21,6 +21,7 @@ import {
   Cancel as CancelIcon,
   CheckCircle as CheckCircleIcon,
 } from "@mui/icons-material";
+import { Rating } from "@mui/material";
 
 interface WatchedMovie {
   id: number;
@@ -57,11 +58,6 @@ interface HistoryModalProps {
   onOpenAnalysisModal: () => void;
   isMovieWatched: (movieId: number) => boolean;
   renderGenres: (genres: string | string[] | null) => React.ReactNode;
-  StarRating: React.ComponentType<{
-    rating: number | null;
-    onRatingChange: (rating: number) => void;
-    movieId: number;
-  }>;
 }
 
 const HistoryModal: React.FC<HistoryModalProps> = ({
@@ -75,14 +71,71 @@ const HistoryModal: React.FC<HistoryModalProps> = ({
   historyError,
   removingFromWatchedLoading,
   addingToWatchedLoading,
+  ratingLoading,
   onRemoveFromWatched,
   onAddToWatched,
   onUpdateRating,
   onOpenAnalysisModal,
   isMovieWatched,
   renderGenres,
-  StarRating,
 }) => {
+  // Componente StarRating local
+  const StarRating = ({
+    rating,
+    onRatingChange,
+    movieId,
+  }: {
+    rating: number | null;
+    onRatingChange: (rating: number) => void;
+    movieId: number;
+  }) => {
+    const isLoading = ratingLoading === movieId;
+
+    return (
+      <Box display="flex" alignItems="center" gap={1}>
+        {isLoading ? (
+          <Box display="flex" alignItems="center" gap={1}>
+            <CircularProgress size={20} />
+            <Typography variant="body2" color="text.secondary">
+              Salvando...
+            </Typography>
+          </Box>
+        ) : (
+          <>
+            <Rating
+              value={rating || 0}
+              onChange={(_, newValue) => {
+                if (newValue !== null) {
+                  onRatingChange(newValue);
+                }
+              }}
+              size="large"
+              sx={{
+                "& .MuiRating-iconFilled": {
+                  color: "#fbbf24",
+                },
+                "& .MuiRating-iconHover": {
+                  color: "#f59e0b",
+                },
+                "& .MuiRating-iconEmpty": {
+                  color: "rgba(251, 191, 36, 0.3)",
+                },
+              }}
+            />
+            {rating ? (
+              <Typography variant="body2" color="text.secondary">
+                {rating}/5
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Clique para avaliar
+              </Typography>
+            )}
+          </>
+        )}
+      </Box>
+    );
+  };
   return (
     <Modal
       open={open}

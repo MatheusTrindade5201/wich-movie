@@ -545,11 +545,18 @@ function App() {
                 "& .MuiRating-iconHover": {
                   color: "#f59e0b",
                 },
+                "& .MuiRating-iconEmpty": {
+                  color: "rgba(251, 191, 36, 0.3)",
+                },
               }}
             />
-            {rating && (
+            {rating ? (
               <Typography variant="body2" color="text.secondary">
                 {rating}/5
+              </Typography>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Clique para avaliar
               </Typography>
             )}
           </>
@@ -1674,7 +1681,6 @@ function App() {
         onOpenAnalysisModal={handleOpenAnalysisModal}
         isMovieWatched={isMovieWatched}
         renderGenres={renderGenres}
-        StarRating={StarRating}
       />
 
       {/* Modal de Análise - Renderizado sempre */}
@@ -1688,7 +1694,7 @@ function App() {
             justifyContent: "center",
             p: 2,
             backgroundColor: "rgba(0, 0, 0, 0.4)",
-            zIndex: 9999,
+            zIndex: 999999,
           }}
         >
           <Paper
@@ -1916,290 +1922,6 @@ function App() {
                       ))}
                     </List>
                   </Box>
-                )}
-              </Box>
-            )}
-          </Paper>
-        </Modal>
-      )}
-
-      {/* Modal de Histórico - Fora de qualquer estrutura condicional */}
-      {showHistoryModal && (
-        <Modal
-          open={showHistoryModal}
-          onClose={handleCloseHistoryModal}
-          container={() => document.body}
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            backgroundColor: "rgba(0, 0, 0, 0.4)",
-            zIndex: 99999,
-          }}
-        >
-          <Paper
-            sx={{
-              width: 400,
-              height: "100vh",
-              overflow: "auto",
-              position: "relative",
-              p: 3,
-              borderRadius: 0,
-              backgroundColor: "#1e293b",
-              border: "1px solid #334155",
-            }}
-          >
-            <IconButton
-              onClick={handleCloseHistoryModal}
-              sx={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-              }}
-            >
-              <CloseIcon />
-            </IconButton>
-
-            <Typography variant="h4" sx={{ mb: 3 }}>
-              <LibraryBooksIcon sx={{ mr: 1, verticalAlign: "middle" }} />
-              Histórico de Filmes
-            </Typography>
-
-            {/* Abas de Navegação */}
-            <Box sx={{ mb: 3 }}>
-              <Box
-                display="flex"
-                gap={1}
-                sx={{ borderBottom: 1, borderColor: "divider" }}
-              >
-                <Button
-                  variant={historyView === "watched" ? "contained" : "text"}
-                  onClick={() => setHistoryView("watched")}
-                  startIcon={<VisibilityIcon />}
-                  sx={{
-                    borderRadius: 0,
-                    borderBottom: historyView === "watched" ? 2 : 0,
-                    borderColor: "primary.main",
-                    textTransform: "none",
-                    fontWeight: historyView === "watched" ? 600 : 400,
-                  }}
-                >
-                  Assistidos ({watchedMovies.length})
-                </Button>
-                <Button
-                  variant={historyView === "recommended" ? "contained" : "text"}
-                  onClick={() => setHistoryView("recommended")}
-                  startIcon={<RecommendIcon />}
-                  sx={{
-                    borderRadius: 0,
-                    borderBottom: historyView === "recommended" ? 2 : 0,
-                    borderColor: "primary.main",
-                    textTransform: "none",
-                    fontWeight: historyView === "recommended" ? 600 : 400,
-                  }}
-                >
-                  Recomendados ({recommendedMovies.length})
-                </Button>
-              </Box>
-            </Box>
-
-            {historyLoading && (
-              <Box textAlign="center" py={4}>
-                <LinearProgress sx={{ width: 200, mx: "auto", mb: 2 }} />
-                <Typography variant="h6" color="text.secondary">
-                  Carregando histórico...
-                </Typography>
-              </Box>
-            )}
-
-            {historyError && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                Erro: {historyError}
-              </Alert>
-            )}
-
-            {!historyLoading && !historyError && (
-              <Box>
-                {historyView === "watched" ? (
-                  /* Filmes Assistidos */
-                  <Box>
-                    {watchedMovies.length > 0 && (
-                      <Box sx={{ mb: 2 }}>
-                        <Button
-                          variant="contained"
-                          size="small"
-                          onClick={handleOpenAnalysisModal}
-                          startIcon={<AutoAwesomeIcon />}
-                          sx={{
-                            px: 2,
-                            py: 0.8,
-                            borderRadius: 2,
-                            textTransform: "none",
-                            fontSize: "0.9rem",
-                            backgroundColor: "#8b5cf6",
-                            color: "white",
-                            "&:hover": {
-                              backgroundColor: "#7c3aed",
-                              transform: "translateY(-1px)",
-                              boxShadow: 3,
-                            },
-                            "&:active": {
-                              backgroundColor: "#6d28d9",
-                              transform: "translateY(0)",
-                            },
-                          }}
-                        >
-                          Análise dos Filmes Assistidos
-                        </Button>
-                      </Box>
-                    )}
-
-                    <List>
-                      {watchedMovies.map((movie) => (
-                        <ListItem
-                          key={movie.movieId}
-                          sx={{
-                            position: "relative",
-                            p: 2,
-                            mb: 1,
-                            borderRadius: 2,
-                            backgroundColor: STYLES.cardBackground,
-                            border: "1px solid rgba(148, 163, 184, 0.2)",
-                          }}
-                        >
-                          <IconButton
-                            onClick={() =>
-                              handleRemoveFromWatched(movie.movieId)
-                            }
-                            disabled={
-                              removingFromWatchedLoading === movie.movieId
-                            }
-                            sx={{
-                              position: "absolute",
-                              top: 8,
-                              right: 8,
-                              backgroundColor: "rgba(239, 68, 68, 0.1)",
-                              color: "error.main",
-                              "&:hover": {
-                                backgroundColor: "rgba(239, 68, 68, 0.2)",
-                              },
-                            }}
-                          >
-                            {removingFromWatchedLoading === movie.movieId ? (
-                              <CircularProgress size={16} />
-                            ) : (
-                              <CancelIcon fontSize="small" />
-                            )}
-                          </IconButton>
-
-                          <Box display="flex" gap={2}>
-                            {movie.poster && (
-                              <img
-                                src={movie.poster}
-                                alt={movie.title}
-                                style={{
-                                  width: "50px",
-                                  height: "75px",
-                                  borderRadius: "8px",
-                                  objectFit: "cover",
-                                }}
-                              />
-                            )}
-                            <Box flex={1}>
-                              <Typography
-                                variant="subtitle1"
-                                fontWeight={600}
-                                lineHeight={1.2}
-                                sx={{ mb: 0.5 }}
-                              >
-                                {movie.title}
-                              </Typography>
-                              {renderGenres(movie.genres)}
-                              {movie.rating && (
-                                <Box
-                                  display="flex"
-                                  alignItems="center"
-                                  gap={0.5}
-                                >
-                                  <StarRating
-                                    rating={movie.rating}
-                                    onRatingChange={(rating) =>
-                                      handleUpdateRating(movie.movieId, rating)
-                                    }
-                                    movieId={movie.movieId}
-                                  />
-                                </Box>
-                              )}
-                            </Box>
-                          </Box>
-                        </ListItem>
-                      ))}
-                    </List>
-                  </Box>
-                ) : (
-                  /* Filmes Recomendados */
-                  <List>
-                    {recommendedMovies.map((movie) => (
-                      <ListItem
-                        key={movie.movieId}
-                        sx={{
-                          position: "relative",
-                          p: 2,
-                          mb: 1,
-                          borderRadius: 2,
-                          backgroundColor: STYLES.cardBackground,
-                          border: "1px solid rgba(148, 163, 184, 0.2)",
-                        }}
-                      >
-                        <IconButton
-                          onClick={() => handleAddToWatched(movie)}
-                          disabled={addingToWatchedLoading}
-                          sx={{
-                            position: "absolute",
-                            top: 8,
-                            right: 8,
-                            backgroundColor: "rgba(34, 197, 94, 0.1)",
-                            color: "success.main",
-                            "&:hover": {
-                              backgroundColor: "rgba(34, 197, 94, 0.2)",
-                            },
-                          }}
-                        >
-                          {addingToWatchedLoading ? (
-                            <CircularProgress size={16} />
-                          ) : (
-                            <CheckCircleIcon fontSize="small" />
-                          )}
-                        </IconButton>
-
-                        <Box display="flex" gap={2}>
-                          {movie.poster && (
-                            <img
-                              src={movie.poster}
-                              alt={movie.title}
-                              style={{
-                                width: "50px",
-                                height: "75px",
-                                borderRadius: "8px",
-                                objectFit: "cover",
-                              }}
-                            />
-                          )}
-                          <Box flex={1}>
-                            <Typography
-                              variant="subtitle1"
-                              fontWeight={600}
-                              lineHeight={1.2}
-                              sx={{ mb: 0.5 }}
-                            >
-                              {movie.title}
-                            </Typography>
-                            {renderGenres(movie.genres)}
-                          </Box>
-                        </Box>
-                      </ListItem>
-                    ))}
-                  </List>
                 )}
               </Box>
             )}
