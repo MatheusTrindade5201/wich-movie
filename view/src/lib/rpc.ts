@@ -38,6 +38,35 @@ export interface MovieReviews {
   keyPoints: string[];
 }
 
+export interface RecommendedMovie {
+  id: number;
+  movieId: number;
+  title: string;
+  poster: string | null;
+  genres: string | null;
+  createdAt: string;
+}
+
+export interface WatchedMovie {
+  id: number;
+  movieId: number;
+  title: string;
+  poster: string | null;
+  genres: string | null;
+  createdAt: string;
+}
+
+export interface SuggestedGenre {
+  id: number;
+  name: string;
+  reason: string;
+}
+
+export interface GenreSuggestion {
+  suggestedGenres: SuggestedGenre[];
+  analysis: string;
+}
+
 interface CustomTools {
   LIST_MOVIE_GENRES: () => Promise<{ genres: MovieGenre[] }>;
   RECOMMEND_MOVIE: (input: {
@@ -45,6 +74,20 @@ interface CustomTools {
     excludeGenreIds?: number[];
   }) => Promise<MovieRecommendation>;
   GET_MOVIE_REVIEWS: (input: { movieId: number }) => Promise<MovieReviews>;
+  GET_RECOMMENDED_MOVIES: () => Promise<{ movies: RecommendedMovie[] }>;
+  GET_WATCHED_MOVIES: () => Promise<{ movies: WatchedMovie[] }>;
+  ADD_WATCHED_MOVIE: (input: {
+    movieId: number;
+    title: string;
+    poster?: string;
+    genres?: string[];
+  }) => Promise<{ success: boolean; id: number }>;
+  REMOVE_WATCHED_MOVIE: (input: {
+    movieId: number;
+  }) => Promise<{ success: boolean }>;
+  SUGGEST_GENRES: (input: {
+    preference: "comfort" | "new";
+  }) => Promise<GenreSuggestion>;
 }
 
 // Cliente RPC simples para comunicação com o servidor MCP
@@ -131,6 +174,35 @@ class RPCClient {
 
   async GET_MOVIE_REVIEWS(input: { movieId: number }): Promise<MovieReviews> {
     return this.callTool("GET_MOVIE_REVIEWS", input);
+  }
+
+  async GET_RECOMMENDED_MOVIES(): Promise<{ movies: RecommendedMovie[] }> {
+    return this.callTool("GET_RECOMMENDED_MOVIES");
+  }
+
+  async GET_WATCHED_MOVIES(): Promise<{ movies: WatchedMovie[] }> {
+    return this.callTool("GET_WATCHED_MOVIES");
+  }
+
+  async ADD_WATCHED_MOVIE(input: {
+    movieId: number;
+    title: string;
+    poster?: string;
+    genres?: string[];
+  }): Promise<{ success: boolean; id: number }> {
+    return this.callTool("ADD_WATCHED_MOVIE", input);
+  }
+
+  async REMOVE_WATCHED_MOVIE(input: {
+    movieId: number;
+  }): Promise<{ success: boolean }> {
+    return this.callTool("REMOVE_WATCHED_MOVIE", input);
+  }
+
+  async SUGGEST_GENRES(input: {
+    preference: "comfort" | "new";
+  }): Promise<GenreSuggestion> {
+    return this.callTool("SUGGEST_GENRES", input);
   }
 }
 

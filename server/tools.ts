@@ -12,7 +12,7 @@ import { createTool } from "@deco/workers-runtime/mastra";
 import { z } from "zod";
 import type { Env } from "./main.ts";
 import { getDb } from "./db.ts";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import {
   tmdbApiKeyTable,
   recommendedMoviesTable,
@@ -674,6 +674,185 @@ export const createGetWatchedMoviesTool = (env: Env) =>
     },
   });
 
+export const createSuggestGenresTool = (env: Env) =>
+  createTool({
+    id: "SUGGEST_GENRES",
+    description:
+      "Analisa filmes assistidos e sugere gêneros baseado na preferência do usuário (zona de conforto ou experiência nova).",
+    inputSchema: z.object({
+      preference: z.enum(["comfort", "new"]),
+    }),
+    outputSchema: z.object({
+      suggestedGenres: z.array(
+        z.object({
+          id: z.number(),
+          name: z.string(),
+          reason: z.string(),
+        })
+      ),
+      analysis: z.string(),
+    }),
+    execute: async ({ context }) => {
+      const db = await getDb(env);
+
+      // Buscar filmes assistidos
+      const watchedMovies = await db
+        .select()
+        .from(watchedMoviesTable)
+        .orderBy(desc(watchedMoviesTable.createdAt));
+
+      if (watchedMovies.length === 0) {
+        // Se não há filmes assistidos, sugerir gêneros populares
+        const popularGenres = [
+          { id: 28, name: "Ação", reason: "Gênero popular para iniciantes" },
+          { id: 12, name: "Aventura", reason: "Gênero envolvente e acessível" },
+          { id: 35, name: "Comédia", reason: "Gênero leve e divertido" },
+        ];
+
+        return {
+          suggestedGenres: popularGenres,
+          analysis:
+            "Como você ainda não tem filmes assistidos, sugerimos gêneros populares e acessíveis para começar sua jornada cinematográfica.",
+        };
+      }
+
+      // Analisar gêneros dos filmes assistidos
+      const genreFrequency: {
+        [key: string]: { count: number; name: string; id: number };
+      } = {};
+
+      watchedMovies.forEach((movie) => {
+        if (movie.genres) {
+          try {
+            const genres = JSON.parse(movie.genres);
+            if (Array.isArray(genres)) {
+              genres.forEach((genre) => {
+                if (genreFrequency[genre]) {
+                  genreFrequency[genre].count++;
+                } else {
+                  // Buscar ID do gênero pelo nome
+                  const genreId = getGenreIdByName(genre);
+                  genreFrequency[genre] = {
+                    count: 1,
+                    name: genre,
+                    id: genreId,
+                  };
+                }
+              });
+            }
+          } catch (error) {
+            console.error("Erro ao processar gêneros do filme:", error);
+          }
+        }
+      });
+
+      // Ordenar gêneros por frequência
+      const sortedGenres = Object.values(genreFrequency).sort(
+        (a, b) => b.count - a.count
+      );
+
+      // Buscar todos os gêneros disponíveis
+      const allGenres = await getAllGenres(env);
+
+      if (context.preference === "comfort") {
+        // Zona de conforto: sugerir gêneros similares aos mais assistidos
+        const topGenres = sortedGenres.slice(0, 3);
+        const suggestedGenres = topGenres.map((genre) => ({
+          id: genre.id,
+          name: genre.name,
+          reason: `Você assistiu ${genre.count} filmes deste gênero`,
+        }));
+
+        return {
+          suggestedGenres,
+          analysis: `Baseado nos seus filmes assistidos, você parece gostar de ${topGenres.map((g) => g.name).join(", ")}. Sugerimos continuar explorando esses gêneros que você já aprecia.`,
+        };
+      } else {
+        // Experiência nova: sugerir gêneros diferentes
+        const watchedGenreNames = sortedGenres.map((g: any) =>
+          g.name.toLowerCase()
+        );
+        const newGenres = allGenres.filter(
+          (genre: any) => !watchedGenreNames.includes(genre.name.toLowerCase())
+        );
+
+        // Selecionar 3 gêneros diferentes aleatoriamente
+        const shuffled = newGenres.sort(() => 0.5 - Math.random());
+        const suggestedGenres = shuffled.slice(0, 3).map((genre: any) => ({
+          id: genre.id,
+          name: genre.name,
+          reason: "Gênero diferente dos seus filmes assistidos",
+        }));
+
+        return {
+          suggestedGenres,
+          analysis: `Para uma experiência nova, sugerimos explorar gêneros que você ainda não assistiu muito: ${suggestedGenres.map((g: any) => g.name).join(", ")}.`,
+        };
+      }
+    },
+  });
+
+// Função auxiliar para buscar ID do gênero pelo nome
+function getGenreIdByName(genreName: string): number {
+  const genreMap: { [key: string]: number } = {
+    Ação: 28,
+    Aventura: 12,
+    Animação: 16,
+    Comédia: 35,
+    Crime: 80,
+    Documentário: 99,
+    Drama: 18,
+    Família: 10751,
+    Fantasia: 14,
+    História: 36,
+    Terror: 27,
+    Música: 10402,
+    Mistério: 9648,
+    Romance: 10749,
+    "Ficção científica": 878,
+    "Cinema TV": 10770,
+    Thriller: 53,
+    Guerra: 10752,
+    Faroeste: 37,
+  };
+
+  return genreMap[genreName] || 28; // Fallback para Ação
+}
+
+// Função auxiliar para buscar todos os gêneros
+async function getAllGenres(env: Env) {
+  const db = await getDb(env);
+  const apiKeyRow = await db
+    .select()
+    .from(tmdbApiKeyTable)
+    .where(eq(tmdbApiKeyTable.id, 1));
+  const apiKey = apiKeyRow[0]?.apiKey;
+
+  if (!apiKey) {
+    throw new Error("TMDB API key not configured");
+  }
+
+  let url = "https://api.themoviedb.org/3/genre/movie/list?language=pt-BR";
+  let fetchOptions: RequestInit = {};
+
+  if (apiKey.startsWith("eyJ")) {
+    fetchOptions.headers = {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    };
+  } else {
+    url += `&api_key=${apiKey}`;
+  }
+
+  const res = await fetch(url, fetchOptions);
+  if (!res.ok) {
+    throw new Error(`TMDB API error: ${res.status}`);
+  }
+
+  const data = await res.json();
+  return data.genres || [];
+}
+
 export const tools = [
   createRecommendMovieTool,
   createSetTmdbApiKeyTool,
@@ -684,4 +863,5 @@ export const tools = [
   createAddWatchedMovieTool,
   createRemoveWatchedMovieTool,
   createGetWatchedMoviesTool,
+  createSuggestGenresTool,
 ];
