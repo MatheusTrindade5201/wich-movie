@@ -1,12 +1,14 @@
+import { createRoute, type RootRoute } from "@tanstack/react-router";
+
 import { useState, useEffect } from "react";
-import { client, type MovieAnalysis } from "./lib/rpc";
+import { client, type MovieAnalysis } from "../lib/rpc";
 import type {
   MovieRecommendation,
   MovieReviews,
   RecommendedMovie,
   WatchedMovie,
   GenreSuggestion,
-} from "./lib/rpc";
+} from "../lib/rpc";
 import {
   Button,
   Card,
@@ -44,7 +46,7 @@ import {
   Psychology as PsychologyIcon,
   Explore as ExploreIcon,
 } from "@mui/icons-material";
-import HistoryModal from "./components/HistoryModal";
+import HistoryModal from "../components/HistoryModal";
 
 // Constantes de estilo
 const STYLES = {
@@ -1927,4 +1929,9 @@ function App() {
   );
 }
 
-export default App;
+export default (parentRoute: RootRoute) =>
+  createRoute({
+    path: "/",
+    component: App,
+    getParentRoute: () => parentRoute,
+  });

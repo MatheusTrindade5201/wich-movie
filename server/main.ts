@@ -18,27 +18,31 @@ import { views } from "./views.ts";
  * It includes all of the generated types from your
  * Deco bindings, along with the default ones.
  */
-export type Env = DefaultEnv & DecoEnv & {
-  ASSETS: {
-    fetch: (request: Request) => Promise<Response>;
+export type Env = DefaultEnv &
+  DecoEnv & {
+    ASSETS: {
+      fetch: (request: Request) => Promise<Response>;
+    };
   };
-};
 
-const fallbackToView = (viewPath: string = "/") => (req: Request, env: Env) => {
-  const LOCAL_URL = "http://localhost:4000";
-  const url = new URL(req.url);
-  const useDevServer = (req.headers.get("origin") || req.headers.get("host"))
-    ?.includes("localhost");
+const fallbackToView =
+  (viewPath: string = "/") =>
+  (req: Request, env: Env) => {
+    const LOCAL_URL = "http://localhost:4000";
+    const url = new URL(req.url);
+    const useDevServer = (
+      req.headers.get("origin") || req.headers.get("host")
+    )?.includes("localhost");
 
-  const request = new Request(
-    useDevServer
-      ? new URL(`${url.pathname}${url.search}`, LOCAL_URL)
-      : new URL(viewPath, req.url),
-    req,
-  );
+    const request = new Request(
+      useDevServer
+        ? new URL(`${url.pathname}${url.search}`, LOCAL_URL)
+        : new URL(viewPath, req.url),
+      req
+    );
 
-  return useDevServer ? fetch(request) : env.ASSETS.fetch(request);
-};
+    return useDevServer ? fetch(request) : env.ASSETS.fetch(request);
+  };
 
 const runtime = withRuntime<Env, typeof StateSchema>({
   oauth: {

@@ -1,18 +1,28 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import viteReact from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+
+import { resolve } from "node:path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [viteReact(), tailwindcss()],
+  build: {
+    outDir: "../server/view-build/",
+    emptyOutDir: true,
+  },
   server: {
-    port: 4000,
+    strictPort: true,
     proxy: {
-      "/mcp": {
+      "/mcp/*": {
         target: "http://localhost:8787",
         changeOrigin: true,
-        secure: false,
-        ws: true,
       },
+    },
+  },
+  resolve: {
+    alias: {
+      "@": resolve(__dirname, "./src"),
     },
   },
 });
